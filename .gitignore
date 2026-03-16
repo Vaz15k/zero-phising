@@ -24,3 +24,10 @@ web-ext.config.ts
 *.njsproj
 *.sln
 *.sw?
+
+*/__pycache__/*
+*/.venv/*
+*/.env/*
+
+*.db
+*.sqlite3
