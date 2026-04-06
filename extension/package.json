@@ -1,8 +1,8 @@
 {
-  "name": "webcontrol",
-  "description": "manifest.json description",
+  "name": "zero-phishing",
+  "description": "Extensão de segurança contra phishing, malware e controle de acesso.",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -21,8 +21,8 @@
   "devDependencies": {
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@wxt-dev/module-react": "^1.1.5",
-    "typescript": "^5.9.3",
-    "wxt": "^0.20.19"
+    "@wxt-dev/module-react": "^1.2.2",
+    "typescript": "^6.0.2",
+    "wxt": "^0.20.20"
   }
 }
