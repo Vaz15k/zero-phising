@@ -1,19 +1,11 @@
 // phishingChecker.ts
-// Core logic that uses the API wrappers to evaluate a URL.
-
 import { checkGoogleSafeBrowsing, checkVirusTotal } from './phishingApi';
 
-// Simple in‑memory cache: URL -> { result: boolean; expires: number }
-const cache = new Map<string, { result: boolean; expires: number }>();
+const cache = new Map<string, { result: any; expires: number }>();
 
-/**
- * Checks a URL against external phishing services.
- * Returns true if the URL is considered dangerous.
- */
-export async function checkUrl(url: string): Promise<boolean> {
-  // Only evaluate http/https URLs
+export async function checkUrl(url: string): Promise<any> {
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return false;
+    return { safe: true, skipped: true };
   }
 
   const now = Date.now();
@@ -22,17 +14,27 @@ export async function checkUrl(url: string): Promise<boolean> {
     return cached.result;
   }
 
-  // Run both checks in parallel
-  const results = await Promise.allSettled([
+  const [googleResult, vtResult] = await Promise.allSettled([
     checkGoogleSafeBrowsing(url),
     checkVirusTotal(url),
   ]);
 
-  // Any fulfilled true means dangerous
-  const isDangerous = results.some(r => r.status === 'fulfilled' && r.value === true);
+  const google = googleResult.status === 'fulfilled' ? googleResult.value : { safe: true, error: "Failed to load Google SB" };
+  const virustotal = vtResult.status === 'fulfilled' ? vtResult.value : { safe: true, error: "Failed to load VirusTotal" };
+
+  const bothFailed = !!google.error && !!virustotal.error;
+  if (bothFailed) {
+    const result = { safe: true, skipped: true, reason: 'api_error', google, virustotal, checkedAt: Date.now() };
+    cache.set(url, { result, expires: now + 10 * 60 * 1000 });
+    return result;
+  }
+
+  const isSafe = google.safe && virustotal.safe;
+
+  const result = { safe: isSafe, google, virustotal, checkedAt: Date.now() };
 
   // Cache for 10 minutes
-  cache.set(url, { result: isDangerous, expires: now + 10 * 60 * 1000 });
+  cache.set(url, { result, expires: now + 10 * 60 * 1000 });
 
-  return isDangerous;
+  return result;
 }

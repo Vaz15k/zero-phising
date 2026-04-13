@@ -1,35 +1,167 @@
-import { useState } from 'react';
-import reactLogo from '@/assets/react.svg';
-import wxtLogo from '/wxt.svg';
-import './App.css';
+import { useState, useEffect } from 'react';
+import './style.css';
 
-function App() {
-  const [count, setCount] = useState(0);
+export default function App() {
+  const [url, setUrl] = useState<string>("Obtendo URL atual...");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [result, setResult] = useState<any>(null);
+
+  const checkTab = async () => {
+    setLoading(true);
+    setResult(null);
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const currentTab = tabs[0];
+      if (currentTab && currentTab.url) {
+        setUrl(currentTab.url.length > 45 ? currentTab.url.slice(0, 42) + '...' : currentTab.url);
+        chrome.runtime.sendMessage(
+          { type: 'CHECK_URL', url: currentTab.url },
+          (response) => {
+            setResult(response);
+            setLoading(false);
+          }
+        );
+      } else {
+        setUrl("URL não disponível");
+        setLoading(false);
+      }
+    } catch (e) {
+      console.error(e);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    checkTab();
+  }, []);
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div id="status-card" className="status-card status-loading">
+          <div className="status-icon">⏳</div>
+          <div className="status-text">
+            <h2>Verificando...</h2>
+            <p id="current-url">{url}</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!result) {
+      return (
+        <div id="status-card" className="status-card status-skipped">
+          <div className="status-icon">ℹ️</div>
+          <div className="status-text">
+            <h2>Não suportado</h2>
+            <p id="current-url">{url}</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (result.skipped) {
+      const isApiError = result.reason === 'api_error';
+      return (
+        <>
+          <div id="status-card" className="status-card status-skipped">
+            <div className="status-icon">ℹ️</div>
+            <div className="status-text">
+              <h2>{isApiError ? "Sem verificação" : "URL não verificável"}</h2>
+              <p id="current-url">{url}</p>
+            </div>
+          </div>
+          <div className="details">
+            <div className="api-row">
+              <div>
+                <div className="api-name">Google Safe Browsing</div>
+                <div className="api-sub">{isApiError ? (result.google?.error || "Sem resposta") : "Apenas http/https são verificados"}</div>
+              </div>
+              <span className={`badge ${isApiError ? "badge-error" : "badge-loading"}`}>{isApiError ? "Erro" : "Ignorado"}</span>
+            </div>
+            <div className="api-row">
+              <div>
+                <div className="api-name">VirusTotal</div>
+                <div className="api-sub">{isApiError ? (result.virustotal?.error || "Sem resposta") : "—"}</div>
+              </div>
+              <span className={`badge ${isApiError ? "badge-error" : "badge-loading"}`}>{isApiError ? "Erro" : "Ignorado"}</span>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    const { google, virustotal, safe } = result;
+
+    return (
+      <>
+        <div id="status-card" className={`status-card ${safe && !google?.error && !virustotal?.error ? 'status-safe' : safe ? 'status-safe' : 'status-danger'}`}>
+          <div className="status-icon">{safe ? '✅' : '🚨'}</div>
+          <div className="status-text">
+            <h2>{safe ? 'URL Segura' : 'Possivelmente insegura'}</h2>
+            <p id="current-url">{url}</p>
+          </div>
+        </div>
+
+        <div className="details">
+          {/* Google Safe Browsing */}
+          <div className="api-row">
+            <div>
+              <div className="api-name">Google Safe Browsing</div>
+              <div className="api-sub">
+                {google?.error ? google.error :
+                 google?.safe ? "Nenhuma ameaça detectada" :
+                 (google?.threats?.map((t: any) => t.type.replace(/_/g, " ")).join(", ") || "Ameaça detectada")}
+              </div>
+            </div>
+            <span className={`badge ${google?.error ? 'badge-error' : google?.safe ? 'badge-safe' : 'badge-danger'}`}>
+              {google?.error ? 'Erro' : google?.safe ? 'Seguro' : 'Perigo!'}
+            </span>
+          </div>
+
+          {/* VirusTotal */}
+          <div className="api-row">
+            <div>
+              <div className="api-name">VirusTotal</div>
+              <div className="api-sub">
+                {virustotal?.error ? virustotal.error :
+                 virustotal?.safe && virustotal.totalEngines ? `0/${virustotal.totalEngines} engines detectaram ameaça` :
+                 virustotal?.safe ? "Nenhuma ameaça" :
+                 `${virustotal?.maliciousCount}/${virustotal?.totalEngines} engines detectaram ameaça`}
+              </div>
+            </div>
+            <span className={`badge ${virustotal?.error ? 'badge-error' : virustotal?.safe ? 'badge-safe' : 'badge-danger'}`}>
+              {virustotal?.error ? 'Erro' : virustotal?.safe ? 'Seguro' : 'Perigo!'}
+            </span>
+          </div>
+        </div>
+
+        {virustotal?.permalink && (
+          <a id="vt-link" className="vt-link" href={virustotal.permalink} target="_blank" rel="noreferrer">
+            🔗 Ver relatório completo no VirusTotal
+          </a>
+        )}
+
+        <button className="check-btn" onClick={checkTab}>
+          🔄 Verificar novamente
+        </button>
+      </>
+    );
+  };
 
   return (
     <>
-      <div>
-        <a href="https://wxt.dev" target="_blank">
-          <img src={wxtLogo} className="logo" alt="WXT logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>WXT + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the WXT and React logos to learn more
-      </p>
+      <header>
+        <div className="logo">🛡️</div>
+        <div>
+          <h1>Zero Phishing</h1>
+          <p>Proteção contra URLs maliciosas</p>
+        </div>
+      </header>
+      
+      {renderContent()}
+
+      <footer>Zero Phishing · IFMT-CBA</footer>
     </>
   );
 }
-
-export default App;

@@ -1,55 +1,21 @@
 // phishingApi.ts
 // Wrapper functions for external phishing detection APIs.
 
-interface GoogleSafeBrowsingRequest {
-  client: {
-    clientId: string;
-    clientVersion: string;
-  };
-  threatInfo: {
-    threatTypes: string[]; // e.g., ["MALWARE", "SOCIAL_ENGINEERING", ...]
-    platformTypes: string[]; // e.g., ["ANY_PLATFORM"]
-    threatEntryTypes: string[]; // e.g., ["URL"]
-    threatEntries: { url: string }[];
-  };
-}
-
-interface GoogleSafeBrowsingMatch {
-  threatType: string;
-  platformType: string;
-  threatEntryType: string;
-  threat: { url: string };
-}
-
-interface GoogleSafeBrowsingResponse {
-  matches?: GoogleSafeBrowsingMatch[];
-}
-
 /**
  * Checks a URL against Google Safe Browsing API v4.
- * Returns true if any threat is found, false otherwise.
  */
-export async function checkGoogleSafeBrowsing(url: string): Promise<boolean> {
-  const apiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY;
+export async function checkGoogleSafeBrowsing(url: string) {
+  const apiKey = import.meta.env.WXT_GSB_API_KEY;
   if (!apiKey) {
-    console.warn('Google Safe Browsing API key not set');
-    return false;
+    return { error: 'Google Safe Browsing API key not set', safe: true };
   }
 
-  const requestBody: GoogleSafeBrowsingRequest = {
-    client: {
-      clientId: 'zero-phishing-extension',
-      clientVersion: '1.0.0',
-    },
+  const body = {
+    client: { clientId: "zero-phishing-extension", clientVersion: "1.0.0" },
     threatInfo: {
-      threatTypes: [
-        'MALWARE',
-        'SOCIAL_ENGINEERING',
-        'UNWANTED_SOFTWARE',
-        'POTENTIALLY_HARMFUL_APPLICATION',
-      ],
-      platformTypes: ['ANY_PLATFORM'],
-      threatEntryTypes: ['URL'],
+      threatTypes: ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION"],
+      platformTypes: ["ANY_PLATFORM"],
+      threatEntryTypes: ["URL"],
       threatEntries: [{ url }],
     },
   };
@@ -59,97 +25,78 @@ export async function checkGoogleSafeBrowsing(url: string): Promise<boolean> {
     const resp = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify(body),
     });
     if (!resp.ok) {
-      console.error('Google Safe Browsing request failed', resp.status, resp.statusText);
-      return false;
+      return { error: `Google Safe Browsing request failed: ${resp.status}`, safe: true };
     }
-    const data: GoogleSafeBrowsingResponse = await resp.json();
-    return !!data.matches && data.matches.length > 0;
-  } catch (e) {
-    console.error('Error contacting Google Safe Browsing', e);
-    return false;
-  }
-}
-
-// VirusTotal API types
-interface VirusTotalAnalysisStats {
-  harmless: number;
-  malicious: number;
-  suspicious: number;
-  undetected: number;
-  timeout: number;
-}
-
-interface VirusTotalResponse {
-  data: {
-    id: string;
-    type: string;
-    attributes: {
-      last_analysis_stats: VirusTotalAnalysisStats;
+    const data = await resp.json();
+    const threats = data.matches || [];
+    return {
+      safe: threats.length === 0,
+      threats: threats.map((t: any) => ({
+        type: t.threatType,
+        platform: t.platformType,
+      })),
     };
-  };
+  } catch (e: any) {
+    return { error: `Error contacting Google Safe Browsing: ${e.message}`, safe: true };
+  }
 }
 
 /**
  * Checks a URL against VirusTotal v3 API.
- * Returns true if the analysis reports malicious or suspicious verdicts.
  */
-export async function checkVirusTotal(url: string): Promise<boolean> {
-  const apiKey = process.env.VIRUSTOTAL_API_KEY;
+export async function checkVirusTotal(url: string) {
+  const apiKey = import.meta.env.WXT_VIRUSTOTAL_API_KEY;
   if (!apiKey) {
-    console.warn('VirusTotal API key not set');
-    return false;
+    return { error: 'VirusTotal API key not set', safe: true };
   }
 
-  // Compute SHA-256 hash of the URL for the GET endpoint
-  const encoder = new TextEncoder();
-  const data = encoder.encode(url);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const encodedUrl = btoa(url).replace(/=/g, "");
+  
+  const headers = {
+    'x-apikey': apiKey,
+    'Content-Type': 'application/x-www-form-urlencoded'
+  };
 
-  const getEndpoint = `https://www.virustotal.com/api/v3/urls/${hashHex}`;
-  const headers = { 'x-apikey': apiKey };
-
-  // Try to fetch existing analysis
-  try {
-    const getResp = await fetch(getEndpoint, { headers });
-    if (getResp.ok) {
-      const vtData: VirusTotalResponse = await getResp.json();
-      const stats = vtData.data.attributes.last_analysis_stats;
-      return stats.malicious > 0 || stats.suspicious > 0;
-    }
-  } catch (e) {
-    console.error('VirusTotal GET error', e);
-  }
-
-  // Submit URL for scanning if not found
   const postEndpoint = 'https://www.virustotal.com/api/v3/urls';
-  const form = new URLSearchParams();
-  form.append('url', url);
+  const getUrlId = btoa(url).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+
   try {
-    const postResp = await fetch(postEndpoint, {
+    // 1. Submit
+    const submitResp = await fetch(postEndpoint, {
       method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form,
+      headers,
+      body: `url=${encodeURIComponent(url)}`,
     });
-    if (!postResp.ok) {
-      console.error('VirusTotal POST failed', postResp.status);
-      return false;
+    
+    if (!submitResp.ok) {
+      return { error: `VirusTotal submit failed: ${submitResp.status}`, safe: true };
     }
-    // Poll the analysis shortly after submission
-    const pollResp = await fetch(getEndpoint, { headers });
-    if (!pollResp.ok) {
-      console.error('VirusTotal poll after POST failed');
-      return false;
+    
+    // 2. Get result
+    const getEndpoint = `https://www.virustotal.com/api/v3/urls/${getUrlId}`;
+    const resultResponse = await fetch(getEndpoint, {
+      headers: { 'x-apikey': apiKey },
+    });
+    
+    if (!resultResponse.ok) {
+      return { error: `VirusTotal result failed: ${resultResponse.status}`, safe: true };
     }
-    const pollData: VirusTotalResponse = await pollResp.json();
-    const stats = pollData.data.attributes.last_analysis_stats;
-    return stats.malicious > 0 || stats.suspicious > 0;
-  } catch (e) {
-    console.error('VirusTotal request error', e);
-    return false;
+    
+    const data = await resultResponse.json();
+    const stats = data.data?.attributes?.last_analysis_stats || {};
+    const malicious = (stats.malicious || 0) + (stats.suspicious || 0);
+    
+    return {
+      safe: malicious === 0,
+      stats,
+      permalink: `https://www.virustotal.com/gui/url/${getUrlId}`,
+      maliciousCount: malicious,
+      totalEngines: Object.values(stats).reduce((a: any, b: any) => a + b, 0),
+    };
+  } catch (e: any) {
+    return { error: `VirusTotal request error: ${e.message}`, safe: true };
   }
 }
