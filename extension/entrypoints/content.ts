@@ -1,7 +1,7 @@
 export default defineContentScript({
   matches: ['<all_urls>'],
   main() {
-    chrome.runtime.onMessage.addListener((message) => {
+    browser.runtime.onMessage.addListener((message) => {
       if (message.type === 'SHOW_WARNING_POPUP') {
         const { result, reputation } = message;
         
@@ -161,8 +161,8 @@ async function checkSingleLink(link: HTMLAnchorElement) {
 
     icon.innerText = ' ⏳'; // Carregando
 
-    chrome.runtime.sendMessage({ type: 'CHECK_URL', url: link.href }, (response) => {
-      if (chrome.runtime.lastError) {
+    browser.runtime.sendMessage({ type: 'CHECK_URL', url: link.href }, (response) => {
+      if (browser.runtime.lastError) {
         icon.remove();
         return;
       }

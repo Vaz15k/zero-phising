@@ -10,11 +10,11 @@ export default function App() {
     setLoading(true);
     setResult(null);
     try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tabs = await browser.tabs.query({ active: true, currentWindow: true });
       const currentTab = tabs[0];
       if (currentTab && currentTab.url) {
         setUrl(currentTab.url.length > 45 ? currentTab.url.slice(0, 42) + '...' : currentTab.url);
-        chrome.runtime.sendMessage(
+        browser.runtime.sendMessage(
           { type: 'CHECK_URL', url: currentTab.url },
           (response) => {
             setResult(response);

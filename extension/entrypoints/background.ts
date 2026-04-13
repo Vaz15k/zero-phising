@@ -2,7 +2,7 @@ import { checkUrl } from '../features/phishing/phishingChecker';
 
 export default defineBackground(() => {
   // Listen for tab updates (page loads)
-  chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     // Only check when the page finishes loading
     if (changeInfo.status !== "complete" || !tab.url) return;
 
@@ -10,7 +10,7 @@ export default defineBackground(() => {
       const result = await checkUrl(tab.url);
 
       // Send result to content script / popup
-      chrome.tabs.sendMessage(tabId, {
+      browser.tabs.sendMessage(tabId, {
         type: "URL_CHECK_RESULT",
         url: tab.url,
         result
@@ -29,13 +29,13 @@ export default defineBackground(() => {
         }
 
         // Send message to content script to show overlay popup
-        chrome.tabs.sendMessage(tabId, {
+        browser.tabs.sendMessage(tabId, {
           type: "SHOW_WARNING_POPUP",
           reputation,
           result
         }).catch(() => {});
 
-        chrome.notifications.create({
+        browser.notifications.create({
           type: "basic",
           iconUrl: "icon/128.png",
           title: reputation === 'danger' ? "🚨 Site Perigoso Bloqueado!" : "⚠️ Site Suspeito!",
@@ -45,12 +45,12 @@ export default defineBackground(() => {
       }
 
       // Update extension badge
-      chrome.action.setBadgeText({
+      browser.action.setBadgeText({
         text: result.safe ? "✓" : "!",
         tabId,
       });
 
-      chrome.action.setBadgeBackgroundColor({
+      browser.action.setBadgeBackgroundColor({
         color: result.safe ? "#22c55e" : "#ef4444",
         tabId,
       });
@@ -60,7 +60,7 @@ export default defineBackground(() => {
   });
 
   // Handle messages from popup or content scripts
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "CHECK_URL") {
       checkUrl(message.url)
         .then((result) => sendResponse(result))
