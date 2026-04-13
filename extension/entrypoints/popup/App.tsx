@@ -93,12 +93,39 @@ export default function App() {
 
     const { google, virustotal, safe } = result;
 
+    let reputation = 'safe';
+    let statusIcon = '✅';
+    let statusTitle = 'URL Segura';
+    
+    if (!safe) {
+      const vtMalicious = virustotal?.maliciousCount || 0;
+      const googleUnsafe = !google?.error && !google?.safe;
+      
+      if (googleUnsafe || vtMalicious > 2) {
+        reputation = 'danger';
+        statusIcon = '🚨';
+        statusTitle = 'Site Perigoso!';
+      } else if (vtMalicious > 0 && vtMalicious <= 2) {
+        reputation = 'warning';
+        statusIcon = '⚠️';
+        statusTitle = 'Site Pouco Seguro';
+      } else {
+        reputation = 'danger';
+        statusIcon = '🚨';
+        statusTitle = 'Possivelmente inseguro';
+      }
+    } else if (google?.error || virustotal?.error) {
+      statusTitle = 'Verificação Incompleta';
+      statusIcon = '⚠️';
+      reputation = 'warning';
+    }
+
     return (
       <>
-        <div id="status-card" className={`status-card ${safe && !google?.error && !virustotal?.error ? 'status-safe' : safe ? 'status-safe' : 'status-danger'}`}>
-          <div className="status-icon">{safe ? '✅' : '🚨'}</div>
+        <div id="status-card" className={`status-card status-${reputation}`}>
+          <div className="status-icon">{statusIcon}</div>
           <div className="status-text">
-            <h2>{safe ? 'URL Segura' : 'Possivelmente insegura'}</h2>
+            <h2>{statusTitle}</h2>
             <p id="current-url">{url}</p>
           </div>
         </div>
@@ -130,8 +157,8 @@ export default function App() {
                  `${virustotal?.maliciousCount}/${virustotal?.totalEngines} engines detectaram ameaça`}
               </div>
             </div>
-            <span className={`badge ${virustotal?.error ? 'badge-error' : virustotal?.safe ? 'badge-safe' : 'badge-danger'}`}>
-              {virustotal?.error ? 'Erro' : virustotal?.safe ? 'Seguro' : 'Perigo!'}
+            <span className={`badge ${virustotal?.error ? 'badge-error' : virustotal?.safe ? 'badge-safe' : (virustotal?.maliciousCount > 0 && virustotal?.maliciousCount <= 2 ? 'badge-warning' : 'badge-danger')}`}>
+              {virustotal?.error ? 'Erro' : virustotal?.safe ? 'Seguro' : (virustotal?.maliciousCount > 0 && virustotal?.maliciousCount <= 2 ? 'Suspeito' : 'Perigo!')}
             </span>
           </div>
         </div>

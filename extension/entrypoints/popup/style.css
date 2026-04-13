@@ -29,6 +29,7 @@ header p { font-size: 11px; color: #64748b; }
 }
 
 .status-safe    { background: #052e16; border: 1px solid #16a34a; }
+.status-warning { background: #422006; border: 1px solid #eab308; }
 .status-danger  { background: #450a0a; border: 1px solid #dc2626; }
 .status-loading { background: #1e293b; border: 1px solid #334155; }
 .status-skipped { background: #1e293b; border: 1px solid #334155; }
@@ -66,6 +67,7 @@ header p { font-size: 11px; color: #64748b; }
 }
 
 .badge-safe    { background: #16a34a22; color: #4ade80; border: 1px solid #16a34a; }
+.badge-warning { background: #ca8a0422; color: #facc15; border: 1px solid #ca8a04; }
 .badge-danger  { background: #dc262622; color: #f87171; border: 1px solid #dc2626; }
 .badge-error   { background: #92400e22; color: #fbbf24; border: 1px solid #92400e; }
 .badge-loading { background: #33415522; color: #94a3b8; border: 1px solid #334155; }

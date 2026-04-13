@@ -18,11 +18,28 @@ export default defineBackground(() => {
 
       // Notify user if dangerous
       if (!result.safe) {
+        let reputation = 'danger';
+        const vtMalicious = result.virustotal?.maliciousCount || 0;
+        const googleUnsafe = !result.google?.error && !result.google?.safe;
+        
+        if (googleUnsafe || vtMalicious > 2) {
+          reputation = 'danger';
+        } else if (vtMalicious > 0 && vtMalicious <= 2) {
+          reputation = 'warning';
+        }
+
+        // Send message to content script to show overlay popup
+        chrome.tabs.sendMessage(tabId, {
+          type: "SHOW_WARNING_POPUP",
+          reputation,
+          result
+        }).catch(() => {});
+
         chrome.notifications.create({
           type: "basic",
           iconUrl: "icon/128.png",
-          title: "⚠️ URL Perigosa Detectada!",
-          message: "Esta página pode ser maliciosa.",
+          title: reputation === 'danger' ? "🚨 Site Perigoso Bloqueado!" : "⚠️ Site Suspeito!",
+          message: "O Zero Phishing identificou que esta página pode ser maliciosa.",
           priority: 2,
         });
       }
