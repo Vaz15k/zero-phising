@@ -70,5 +70,119 @@ export default defineContentScript({
         });
       }
     });
+
+    // Inicia a verificação de links na página
+    verifyLinksOnPage();
   },
 });
+
+function verifyLinksOnPage() {
+  const currentHost = window.location.hostname;
+
+  // Usa IntersectionObserver para verificar os links apenas quando eles aparecem na tela
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const link = entry.target as HTMLAnchorElement;
+        
+        // Remove do observer para não checar mais de uma vez
+        observer.unobserve(link);
+
+        checkSingleLink(link);
+      }
+    });
+  }, { rootMargin: '100px' });
+
+  // Pega uma lista estática incial de links
+  const links = Array.from(document.querySelectorAll('a[href]'));
+
+  links.forEach((link) => {
+    const anchor = link as HTMLAnchorElement;
+    try {
+      const url = new URL(anchor.href);
+      // Checa somente links externos usando http ou https
+      if (url.hostname !== currentHost && (url.protocol === 'http:' || url.protocol === 'https:')) {
+        anchor.dataset.zpStatus = 'pending';
+        
+        // Adiciona um ícone inicial
+        const icon = document.createElement('span');
+        icon.className = 'zp-link-indicator';
+        icon.innerText = ' 🔎';
+        icon.style.cssText = 'font-size: 0.9em; margin-left: 4px; text-decoration: none; display: inline-block; cursor: help;';
+        icon.title = 'O Zero Phishing está avaliando a segurança deste link...';
+        
+        anchor.appendChild(icon);
+
+        observer.observe(anchor);
+      }
+    } catch(e) {
+      // Ignora URLs inválidas (e.g., mailto:, javascript:)
+    }
+  });
+
+  // Listener para novos links adicionados dinamicamente na página (SPA e Infinite Scroll)
+  const mutationObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const element = node as HTMLElement;
+          const newLinks = element.tagName === 'A' ? [element] : Array.from(element.querySelectorAll('a[href]'));
+          
+          newLinks.forEach((newLink) => {
+            const anchor = newLink as HTMLAnchorElement;
+            try {
+              const url = new URL(anchor.href);
+              if (url.hostname !== currentHost && (url.protocol === 'http:' || url.protocol === 'https:') && !anchor.dataset.zpStatus) {
+                anchor.dataset.zpStatus = 'pending';
+                
+                const icon = document.createElement('span');
+                icon.className = 'zp-link-indicator';
+                icon.innerText = ' 🔎';
+                icon.style.cssText = 'font-size: 0.9em; margin-left: 4px; text-decoration: none; display: inline-block; cursor: help;';
+                icon.title = 'O Zero Phishing está avaliando a segurança deste link...';
+                
+                anchor.appendChild(icon);
+                observer.observe(anchor);
+              }
+            } catch(e) {}
+          });
+        }
+      });
+    });
+  });
+
+  mutationObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+async function checkSingleLink(link: HTMLAnchorElement) {
+  try {
+    const icon = link.querySelector('.zp-link-indicator') as HTMLElement;
+    if (!icon) return;
+
+    icon.innerText = ' ⏳'; // Carregando
+
+    chrome.runtime.sendMessage({ type: 'CHECK_URL', url: link.href }, (response) => {
+      if (chrome.runtime.lastError) {
+        icon.remove();
+        return;
+      }
+
+      if (response && response.safe === false) {
+        link.dataset.zpStatus = 'danger';
+        icon.innerText = ' ❌';
+        icon.title = 'Aviso: Este link foi identificado como inseguro ou malicioso!';
+        link.style.borderBottom = '2px dashed #ef4444'; // Alerta visual sutil associado ao link
+      } else if (response && response.safe === true && !response.skipped) {
+        link.dataset.zpStatus = 'safe';
+        icon.innerText = ' ✅';
+        icon.title = 'Este link foi verificado e é seguro.';
+      } else {
+        // Ignorado por erro de API local, etc. Não vamos assustar o usuário com falsos positivos.
+        icon.remove();
+      }
+    });
+  } catch(e) {
+    const icon = link.querySelector('.zp-link-indicator');
+    if (icon) icon.remove();
+  }
+}
