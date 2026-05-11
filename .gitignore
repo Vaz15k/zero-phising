@@ -25,9 +25,9 @@ web-ext.config.ts
 *.sln
 *.sw?
 
-*/__pycache__/*
-*/.venv/*
-*/.env/*
+**/__pycache__/**
+**/.venv/**
+**/.env/**
 
 *.db
 *.sqlite3

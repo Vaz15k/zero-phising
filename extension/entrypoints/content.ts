@@ -3,7 +3,7 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener((message) => {
       if (message.type === 'SHOW_WARNING_POPUP') {
-        const { result, reputation } = message;
+        const { reputation } = message;
         
         // Verifica se já existe um alerta para não duplicar
         if (document.getElementById('zero-phishing-warning-popup')) return;
@@ -115,7 +115,7 @@ function verifyLinksOnPage() {
 
         observer.observe(anchor);
       }
-    } catch(e) {
+    } catch {
       // Ignora URLs inválidas (e.g., mailto:, javascript:)
     }
   });
@@ -144,7 +144,7 @@ function verifyLinksOnPage() {
                 anchor.appendChild(icon);
                 observer.observe(anchor);
               }
-            } catch(e) {}
+            } catch {}
           });
         }
       });
@@ -181,7 +181,7 @@ async function checkSingleLink(link: HTMLAnchorElement) {
         icon.remove();
       }
     });
-  } catch(e) {
+  } catch {
     const icon = link.querySelector('.zp-link-indicator');
     if (icon) icon.remove();
   }

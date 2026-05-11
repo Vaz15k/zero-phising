@@ -53,8 +53,6 @@ export async function checkVirusTotal(url: string) {
     return { error: 'VirusTotal API key not set', safe: true };
   }
 
-  const encodedUrl = btoa(url).replace(/=/g, "");
-  
   const headers = {
     'x-apikey': apiKey,
     'Content-Type': 'application/x-www-form-urlencoded'
