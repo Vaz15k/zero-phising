@@ -29,8 +29,8 @@ export default function App() {
     await loadData();
   }
 
-  async function handleDelete(id: any) {
-    await deleteUrlRule(id);
+  async function handleDelete(rule: any) {
+    await deleteUrlRule(rule);
     await loadData();
   }
 
@@ -113,7 +113,7 @@ export default function App() {
                       <strong>{rule.url_pattern}</strong>
                       {typeof rule.id === 'string' && rule.id.startsWith('local_') && <span style={{ marginLeft: '5px', fontSize: '12px', color: '#64748b' }}>(Local)</span>}
                     </div>
-                    <button className="btn-danger" style={{ background: '#fee2e2', color: '#dc2626' }} onClick={() => handleDelete(rule.id)}>
+                    <button className="btn-danger" style={{ background: '#fee2e2', color: '#dc2626' }} onClick={() => handleDelete(rule)}>
                       <Trash2 size={16} />
                     </button>
                   </li>
@@ -149,7 +149,7 @@ export default function App() {
                       <strong>{rule.url_pattern}</strong>
                       {typeof rule.id === 'string' && rule.id.startsWith('local_') && <span style={{ marginLeft: '5px', fontSize: '12px', color: '#64748b' }}>(Local)</span>}
                     </div>
-                    <button className="btn-danger" style={{ background: '#fee2e2', color: '#dc2626' }} onClick={() => handleDelete(rule.id)}>
+                    <button className="btn-danger" style={{ background: '#fee2e2', color: '#dc2626' }} onClick={() => handleDelete(rule)}>
                       <Trash2 size={16} />
                     </button>
                   </li>

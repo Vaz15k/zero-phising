@@ -1,4 +1,4 @@
-import { getLocalRules, addLocalRule, deleteLocalRule as deleteFromStorage } from './storage';
+import { getLocalRules, addLocalRule, deleteLocalRule as deleteFromStorage, deleteLocalRuleByPattern } from './storage';
 
 const API_BASE = import.meta.env.WXT_API_URL || 'http://127.0.0.1:8000';
 
@@ -100,7 +100,13 @@ export async function getUrlRules(): Promise<any[]> {
 
   try {
     const serverRules = await request<any[]>('/accounts/url-rules/');
-    return [...localRules, ...serverRules];
+    
+    // Deduplicar: preferir as regras do servidor (que têm IDs reais para deleção no backend)
+    // Mas manter as locais que ainda não foram sincronizadas
+    const serverPatterns = new Set(serverRules.map(r => `${r.url_pattern}|${r.rule_type}`));
+    const uniqueLocal = localRules.filter(r => !serverPatterns.has(`${r.url_pattern}|${r.rule_type}`));
+    
+    return [...uniqueLocal, ...serverRules];
   } catch (error) {
     console.error('Error fetching URL rules from server:', error);
     return localRules;
@@ -108,34 +114,56 @@ export async function getUrlRules(): Promise<any[]> {
 }
 
 export async function addUrlRule(url_pattern: string, rule_type: 'whitelist' | 'blacklist'): Promise<any> {
+  // Sempre adiciona localmente primeiro para garantir feedback imediato e funcionamento offline
+  const localRule = await addLocalRule(url_pattern, rule_type);
+
   const tokens = await getTokens();
-  if (!tokens) {
-    return await addLocalRule(url_pattern, rule_type);
+  if (tokens) {
+    try {
+      // Tenta sincronizar com o servidor em background
+      await request('/accounts/url-rules/', {
+        method: 'POST',
+        body: { url_pattern, rule_type }
+      });
+    } catch (error) {
+      console.error('Erro ao sincronizar regra com o servidor:', error);
+      // Não lançamos erro aqui para que a regra local continue funcionando
+    }
   }
 
-  return await request('/accounts/url-rules/', {
-    method: 'POST',
-    body: { url_pattern, rule_type }
-  });
+  return localRule;
 }
 
-export async function deleteUrlRule(id: string | number): Promise<void> {
+export async function deleteUrlRule(rule: any): Promise<void> {
+  const id = rule.id;
+  
+  // 1. Sempre tenta remover localmente
   if (typeof id === 'string' && id.startsWith('local_')) {
-    return await deleteFromStorage(id);
+    await deleteFromStorage(id);
+  } else if (rule.url_pattern && rule.rule_type) {
+    // Se for uma regra do servidor, também tentamos remover uma possível cópia local
+    await deleteLocalRuleByPattern(rule.url_pattern, rule.rule_type);
   }
 
-  const url = `${API_BASE}/api/accounts/url-rules/${id}/`;
-  const tokens = await getTokens();
-  if (!tokens) throw new Error('Não autorizado');
-  
-  const response = await fetch(url, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${tokens.access}`
-    }
-  });
+  // 2. Se for uma regra do servidor, remove do backend
+  if (typeof id === 'number') {
+    const url = `${API_BASE}/api/accounts/url-rules/${id}/`;
+    const tokens = await getTokens();
+    if (!tokens) return;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${tokens.access}`
+        }
+      });
 
-  if (!response.ok) {
-    throw new Error('Falha ao excluir regra no servidor');
+      if (!response.ok) {
+        console.error('Falha ao excluir regra no servidor');
+      }
+    } catch (error) {
+      console.error('Erro de conexão ao excluir regra no servidor:', error);
+    }
   }
 }

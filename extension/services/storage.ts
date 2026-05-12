@@ -27,3 +27,9 @@ export async function deleteLocalRule(id: string | number): Promise<void> {
   const filtered = rules.filter(r => r.id !== id);
   await browser.storage.local.set({ [STORAGE_KEY]: filtered });
 }
+
+export async function deleteLocalRuleByPattern(url_pattern: string, rule_type: 'whitelist' | 'blacklist'): Promise<void> {
+  const rules = await getLocalRules();
+  const filtered = rules.filter(r => !(r.url_pattern === url_pattern && r.rule_type === rule_type));
+  await browser.storage.local.set({ [STORAGE_KEY]: filtered });
+}
