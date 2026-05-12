@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { getSavedUser, login, pinLogin, register, updateProfile, logout, User, AuthState } from '../../services/auth';
+import { checkBreaches, Breach } from '../../services/breach';
 import { PopupPage } from '../../types';
-import { Shield, ShieldAlert, CheckCircle, XCircle, Trash2, Plus, LogOut, User as UserIcon, Settings, Loader2, ArrowLeft } from 'lucide-react';
+import { Shield, ShieldAlert, CheckCircle, XCircle, Trash2, Plus, LogOut, User as UserIcon, Settings, Loader2, ArrowLeft, Search } from 'lucide-react';
 import './style.css';
 
 export default function App() {
@@ -31,12 +32,11 @@ export default function App() {
     <>
       <Header user={auth.user} isAuthenticated={auth.isAuthenticated} onLogout={() => { logout().then(() => { setAuth({ user: null, isAuthenticated: false }); }); }} onNavigate={setPage} currentPage={page} />
 
-      {page === 'main' && <UrlChecker />}
+      {page === 'main' && <MainPage onNavigate={setPage} />}
       {page === 'login' && <LoginPage onLogin={(s) => { setAuth(s); setPage('main'); }} onRegister={() => setPage('register')} onPinLogin={(s) => { setAuth(s); setPage('main'); }} onSkip={() => setPage('main')} />}
       {page === 'register' && <RegisterPage onRegister={(s) => { setAuth(s); setPage('main'); }} onBack={() => setPage('login')} />}
       {page === 'profile' && <ProfilePage user={auth.user!} onUpdate={(u) => setAuth({ user: u, isAuthenticated: true })} onBack={() => setPage('main')} />}
       
-      {/* ADICIONE A NOVA LINHA EXATAMENTE AQUI: */}
       {page === 'breaches' && <BreachCheckerPage onBack={() => setPage('main')} />}
 
       <footer>Zero Phishing · IFMT-CBA</footer>
@@ -266,6 +266,19 @@ function ProfilePage({ user, onUpdate, onBack }: { user: User; onUpdate: (u: Use
   );
 }
 
+function MainPage({ onNavigate }: { onNavigate: (p: PopupPage) => void }) {
+  return (
+    <>
+      <UrlChecker />
+      <div className="main-tools">
+        <button className="check-btn tool-btn" onClick={() => onNavigate('breaches')}>
+          <Search size={16} /> Verificar Vazamentos de E-mail
+        </button>
+      </div>
+    </>
+  );
+}
+
 function UrlChecker() {
   const [url, setUrl] = useState<string>('Obtendo URL atual...');
   const [loading, setLoading] = useState<boolean>(true);
@@ -451,17 +464,14 @@ function BreachCheckerPage({ onBack }: { onBack: () => void }) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [breaches, setBreaches] = useState<any[] | null>(null);
+  const [breaches, setBreaches] = useState<Breach[] | null>(null);
 
-  // Validação de formato de e-mail
-  const validateEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  const checkBreaches = async (e: React.FormEvent) => {
+  const handleCheck = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (!validateEmail(email)) {
       setError('Por favor, insira um formato de e-mail válido.');
       return;
@@ -469,40 +479,12 @@ function BreachCheckerPage({ onBack }: { onBack: () => void }) {
 
     setLoading(true);
     setBreaches(null);
-    const cacheKey = `pwned_${email}`;
 
     try {
-      // 1. Verifica o cache localmente
-      const cached = await browser.storage.local.get(cacheKey);
-      if (cached[cacheKey]) {
-        setBreaches(cached[cacheKey]);
-        setLoading(false);
-        return;
-      }
-
-      // 2. Consulta à API HaveIBeenPwned
-      // Nota: A API de contas exige uma API Key ('hibp-api-key'). 
-      const response = await fetch(`https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}?truncateResponse=false`, {
-        headers: {
-          'hibp-api-key': 'SUA_API_KEY_AQUI', // Substitua pela chave da API ou endpoint do seu backend
-          'user-agent': 'Zero-Phishing-Extension'
-        }
-      });
-
-      if (response.status === 404) {
-        // Estado vazio: Não há vazamentos
-        setBreaches([]);
-        await browser.storage.local.set({ [cacheKey]: [] });
-      } else if (!response.ok) {
-        throw new Error('Erro ao consultar a API. Verifique a API Key ou tente novamente.');
-      } else {
-        const data = await response.json();
-        setBreaches(data);
-        // Salva o resultado cacheado localmente
-        await browser.storage.local.set({ [cacheKey]: data });
-      }
+      const data = await checkBreaches(email);
+      setBreaches(data);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido ao verificar e-mail.');
+      setError(err instanceof Error ? err.message : 'Erro ao verificar e-mail.');
     } finally {
       setLoading(false);
     }
@@ -511,21 +493,21 @@ function BreachCheckerPage({ onBack }: { onBack: () => void }) {
   return (
     <div className="container">
       <div className="profile-top-bar">
-        <button className="icon-btn" onClick={onBack}>← Voltar</button>
+        <button className="icon-btn" onClick={onBack} title="Voltar"><ArrowLeft size={18} /></button>
       </div>
-      <div className="auth-card" style={{ maxWidth: '100%' }}>
-        <div className="auth-logo">📧</div>
+      <div className="auth-card">
+        <div className="auth-logo"><Search size={48} color="#3b82f6" /></div>
         <h2>Vazamento de Dados</h2>
         <p className="auth-sub">Verifique se seu e-mail foi exposto em vazamentos</p>
 
-        <form onSubmit={checkBreaches}>
-          <input 
-            className="auth-input" 
-            type="email" 
-            placeholder="Digite seu e-mail" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-            required 
+        <form onSubmit={handleCheck}>
+          <input
+            className="auth-input"
+            type="email"
+            placeholder="Digite seu e-mail"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
           />
           {error && <p className="auth-error">{error}</p>}
           <button className="auth-btn" type="submit" disabled={loading}>
@@ -533,31 +515,27 @@ function BreachCheckerPage({ onBack }: { onBack: () => void }) {
           </button>
         </form>
 
-        {/* Resultados */}
         {breaches !== null && (
-          <div className="breach-results" style={{ marginTop: '20px', textAlign: 'left' }}>
+          <div className="breach-results">
             {breaches.length === 0 ? (
-              <div className="status-card status-safe" style={{ marginTop: '10px' }}>
-                <div className="status-icon">✅</div>
+              <div className="status-card status-safe">
+                <div className="status-icon"><CheckCircle size={28} color="#4ade80" /></div>
                 <div className="status-text">
-                  <h3>Nenhum vazamento!</h3>
-                  <p>Este e-mail não foi encontrado em bancos de dados públicos vazados.</p>
+                  <h3>Nenhum vazamento encontrado</h3>
+                  <p>Este e-mail não foi encontrado em bancos de dados públicos de vazamentos.</p>
                 </div>
               </div>
             ) : (
               <>
-                <h3 style={{ color: '#ef4444', marginBottom: '10px' }}>
-                  ⚠️ Encontrado em {breaches.length} vazamento(s)
+                <h3 className="breach-title">
+                  ⚠️ Encontrado em {breaches.length} vazamento{breaches.length > 1 ? 's' : ''}
                 </h3>
-                <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
-                  {breaches.map((b: any, index: number) => (
-                    <div key={index} className="api-row" style={{ flexDirection: 'column', alignItems: 'flex-start', background: '#2a2a2a', padding: '10px', borderRadius: '8px', marginBottom: '10px' }}>
-                      <div className="api-name" style={{ color: '#fff', fontWeight: 'bold' }}>{b.Name}</div>
-                      <div className="api-sub" style={{ fontSize: '12px', color: '#aaa', margin: '4px 0' }}>
-                        📅 Data: {b.BreachDate}
-                      </div>
-                      <div className="api-sub" style={{ fontSize: '12px' }}>
-                        <strong>Dados expostos:</strong> {b.DataClasses.join(', ')}
+                <div className="breach-list">
+                  {breaches.map((b, index) => (
+                    <div key={index} className="breach-item">
+                      <div className="breach-name">{b.Name}</div>
+                      <div className="breach-meta">
+                        <span>📅 {b.BreachDate}</span>
                       </div>
                     </div>
                   ))}
