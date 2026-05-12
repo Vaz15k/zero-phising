@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getSavedUser, login, pinLogin, register, updateProfile, logout, User, AuthState } from '../../services/auth';
 import { PopupPage } from '../../types';
+import { Shield, ShieldAlert, CheckCircle, XCircle, Trash2, Plus, LogOut, User as UserIcon, Settings, Loader2, ArrowLeft } from 'lucide-react';
 import './style.css';
 
 export default function App() {
@@ -19,7 +20,7 @@ export default function App() {
     return (
       <div className="container">
         <div id="status-card" className="status-card status-loading">
-          <div className="status-icon">⏳</div>
+          <div className="status-icon"><Loader2 className="animate-spin" size={32} /></div>
           <div className="status-text"><h2>Carregando...</h2></div>
         </div>
       </div>
@@ -42,9 +43,14 @@ export default function App() {
 
 function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { user: User | null; isAuthenticated: boolean; onLogout: () => void; onNavigate: (p: PopupPage) => void; currentPage: PopupPage }) {
   if (currentPage !== 'main') return null;
+
+  const openOptions = () => {
+    browser.runtime.openOptionsPage();
+  };
+
   return (
     <header>
-      <div className="logo">🛡️</div>
+      <div className="logo"><Shield size={24} color="#3b82f6" /></div>
       <div>
         <h1>Zero Phishing</h1>
         {isAuthenticated ? (
@@ -53,12 +59,15 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
           <p className="header-subtle">Nao logado · <button className="link-inline" onClick={() => onNavigate('login')}>Entrar</button></p>
         )}
       </div>
-      {isAuthenticated && (
-        <div className="header-menu">
-          <button className="icon-btn" onClick={() => onNavigate('profile')} title="Perfil">👤</button>
-          <button className="icon-btn" onClick={onLogout} title="Sair">🚪</button>
-        </div>
-      )}
+      <div className="header-menu">
+        <button className="icon-btn" onClick={openOptions} title="Configurações (Opções)"><Settings size={18} /></button>
+        {isAuthenticated && (
+          <>
+            <button className="icon-btn" onClick={() => onNavigate('profile')} title="Perfil"><UserIcon size={18} /></button>
+            <button className="icon-btn" onClick={onLogout} title="Sair"><LogOut size={18} /></button>
+          </>
+        )}
+      </div>
     </header>
   );
 }
@@ -93,7 +102,7 @@ function LoginPage({ onLogin, onRegister, onPinLogin, onSkip }: { onLogin: (s: A
   return (
     <div className="container">
       <div className="auth-card">
-        <div className="auth-logo">🛡️</div>
+        <div className="auth-logo"><Shield size={48} color="#3b82f6" /></div>
         <h2>Zero Phishing</h2>
         <p className="auth-sub">Faça login para acessar as configurações</p>
 
@@ -157,7 +166,7 @@ function RegisterPage({ onRegister, onBack }: { onRegister: (s: AuthState) => vo
   return (
     <div className="container">
       <div className="auth-card">
-        <div className="auth-logo">🛡️</div>
+        <div className="auth-logo"><Shield size={48} color="#3b82f6" /></div>
         <h2>Criar Conta</h2>
 
         <form onSubmit={handleSubmit}>
@@ -209,10 +218,10 @@ function ProfilePage({ user, onUpdate, onBack }: { user: User; onUpdate: (u: Use
     return (
       <div className="container">
         <div className="profile-top-bar">
-          <button className="icon-btn" onClick={onBack}>← Voltar</button>
+          <button className="icon-btn" onClick={onBack} title="Voltar"><ArrowLeft size={18} /></button>
         </div>
         <div className="profile-card">
-          <div className="profile-avatar">👤</div>
+          <div className="profile-avatar"><UserIcon size={48} color="#64748b" /></div>
           <h2>{user.first_name || user.username}</h2>
           <div className="profile-info">
             <div className="profile-row"><span>Usuário</span><span>{user.username}</span></div>
@@ -231,7 +240,7 @@ function ProfilePage({ user, onUpdate, onBack }: { user: User; onUpdate: (u: Use
   return (
     <div className="container">
       <div className="profile-top-bar">
-        <button className="icon-btn" onClick={onBack}>← Voltar</button>
+        <button className="icon-btn" onClick={onBack} title="Voltar"><ArrowLeft size={18} /></button>
       </div>
       <div className="auth-card">
         <h2>Editar Perfil</h2>

@@ -3,7 +3,7 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener((message) => {
       if (message.type === 'SHOW_WARNING_POPUP') {
-        const { reputation } = message;
+        const { reputation, isCustomBlacklist } = message;
         
         // Verifica se já existe um alerta para não duplicar
         if (document.getElementById('zero-phishing-warning-popup')) return;
@@ -13,7 +13,19 @@ export default defineContentScript({
         
         const isDanger = reputation === 'danger';
         const color = isDanger ? '#dc2626' : '#ca8a04';
-        const title = isDanger ? '⚠️ Site Perigoso Blockeado!' : '⚠️ Site Suspeito!';
+        
+        // Custom message logic
+        let title = '';
+        let messageText = '';
+        if (isCustomBlacklist) {
+          title = '🚫 Site Bloqueado pelo Administrador';
+          messageText = 'Este site foi <strong>bloqueado manualmente</strong> nas configurações do Zero Phishing e não pode ser acessado.';
+        } else {
+          title = isDanger ? '⚠️ Site Perigoso Bloqueado!' : '⚠️ Site Suspeito!';
+          messageText = `O <strong>Zero Phishing</strong> detectou que este site tem reputação <strong>${isDanger ? 'ruim' : 'suspeita'}</strong>.
+            ${isDanger ? 'Recomendamos que você saia imediatamente.' : 'Tome cuidado ao fornecer informações pessoais.'}`;
+        }
+
         const bgColors = isDanger ? 'background: #fef2f2; border: 2px solid #dc2626;' : 'background: #fefce8; border: 2px solid #ca8a04;';
         
         overlay.style.cssText = `
@@ -38,22 +50,23 @@ export default defineContentScript({
           box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         `;
 
+        const iconSvg = isCustomBlacklist 
+          ? `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 9 6 6"/><path d="m15 9-6 6"/></svg>`
+          : `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`;
+
         modal.innerHTML = `
-          <div style="font-size: 48px; margin-bottom: 16px;">🚨</div>
+          <div style="margin-bottom: 16px;">${iconSvg}</div>
           <h1 style="color: ${color}; font-size: 24px; font-weight: bold; margin: 0 0 12px 0;">${title}</h1>
-          <p style="font-size: 16px; margin: 0 0 24px 0; line-height: 1.5;">
-            O <strong>Zero Phishing</strong> detectou que este site tem reputação <strong>${isDanger ? 'ruim' : 'suspeita'}</strong>.
-            ${isDanger ? 'Recomendamos que você saia imediatamente.' : 'Tome cuidado ao fornecer informações pessoais.'}
-          </p>
+          <p style="font-size: 16px; margin: 0 0 24px 0; line-height: 1.5;">${messageText}</p>
           <div style="display: flex; gap: 12px; justify-content: center;">
             <button id="zp-leave-btn" style="
               background: ${color}; color: white; border: none; padding: 12px 24px; 
               border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px;
-            ">Voltar à Segurança</button>
-            <button id="zp-continue-btn" style="
+            ">Voltar</button>
+            ${!isCustomBlacklist ? `<button id="zp-continue-btn" style="
               background: transparent; color: #64748b; border: 1px solid #cbd5e1; 
               padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px;
-            ">Ignorar e Continuar</button>
+            ">Ignorar e Continuar</button>` : ''}
           </div>
         `;
 
@@ -107,8 +120,8 @@ function verifyLinksOnPage() {
         // Adiciona um ícone inicial
         const icon = document.createElement('span');
         icon.className = 'zp-link-indicator';
-        icon.innerText = ' 🔎';
-        icon.style.cssText = 'font-size: 0.9em; margin-left: 4px; text-decoration: none; display: inline-block; cursor: help;';
+        icon.innerHTML = `<svg style="vertical-align: middle; margin-left: 4px;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
+        icon.style.cssText = 'text-decoration: none; display: inline-block; cursor: help;';
         icon.title = 'O Zero Phishing está avaliando a segurança deste link...';
         
         anchor.appendChild(icon);
@@ -137,8 +150,8 @@ function verifyLinksOnPage() {
                 
                 const icon = document.createElement('span');
                 icon.className = 'zp-link-indicator';
-                icon.innerText = ' 🔎';
-                icon.style.cssText = 'font-size: 0.9em; margin-left: 4px; text-decoration: none; display: inline-block; cursor: help;';
+                icon.innerHTML = `<svg style="vertical-align: middle; margin-left: 4px;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
+                icon.style.cssText = 'text-decoration: none; display: inline-block; cursor: help;';
                 icon.title = 'O Zero Phishing está avaliando a segurança deste link...';
                 
                 anchor.appendChild(icon);

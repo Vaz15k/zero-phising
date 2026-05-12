@@ -17,4 +17,14 @@ urlpatterns = [
         views.ParentalControlDetailView.as_view(),
         name='parental-control-detail',
     ),
+    path(
+        'url-rules/',
+        views.CustomURLRuleListCreateView.as_view(),
+        name='url-rules-list',
+    ),
+    path(
+        'url-rules/<int:pk>/',
+        views.CustomURLRuleDetailView.as_view(),
+        name='url-rules-detail',
+    ),
 ]

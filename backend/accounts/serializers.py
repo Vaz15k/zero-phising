@@ -1,6 +1,19 @@
 from rest_framework import serializers
 
-from .models import User, ParentalControl
+from .models import User, ParentalControl, CustomURLRule
+
+
+class CustomURLRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomURLRule
+        fields = ('id', 'url_pattern', 'rule_type', 'created_at')
+        read_only_fields = ('id', 'created_at')
+
+    def validate_url_pattern(self, value):
+        # Validação simples (pode ser aprimorada depois)
+        if not value:
+            raise serializers.ValidationError("A URL não pode ser vazia.")
+        return value
 
 
 class RegisterSerializer(serializers.ModelSerializer):

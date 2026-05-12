@@ -1,71 +1,56 @@
 import { checkUrl } from '../features/phishing/phishingChecker';
 
 export default defineBackground(() => {
-  // Listen for tab updates (page loads)
   browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    // Only check when the page finishes loading
-    if (changeInfo.status !== "complete" || !tab.url) return;
+    // Monitora o carregamento inicial
+    if (changeInfo.status !== "loading" || !tab.url) return;
+    
+    // Ignora URLs internas
+    if (!tab.url.startsWith('http')) return;
+    if (tab.url.includes(browser.runtime.getURL(''))) return;
 
     try {
       const result = await checkUrl(tab.url);
 
-      // Send result to content script / popup
-      browser.tabs.sendMessage(tabId, {
-        type: "URL_CHECK_RESULT",
-        url: tab.url,
-        result
-      }).catch(() => {}); // Tab may not have content script
-
-      // Notify user if dangerous
-      if (!result.safe) {
-        let reputation = 'danger';
-        const vtMalicious = result.virustotal?.maliciousCount || 0;
-        const googleUnsafe = !result.google?.error && !result.google?.safe;
+      // Bloqueio: Somente se NÃO for seguro E NÃO for por causa da Whitelist
+      if (!result.safe && result.reason !== 'whitelist') {
+        const warningUrl = browser.runtime.getURL(`warning.html?url=${encodeURIComponent(tab.url)}&reason=${result.reason || 'phishing'}`);
         
-        if (googleUnsafe || vtMalicious > 2) {
-          reputation = 'danger';
-        } else if (vtMalicious > 0 && vtMalicious <= 2) {
-          reputation = 'warning';
-        }
-
-        // Send message to content script to show overlay popup
-        browser.tabs.sendMessage(tabId, {
-          type: "SHOW_WARNING_POPUP",
-          reputation,
-          result
-        }).catch(() => {});
+        console.log(`[Zero Phishing] REDIRECIONANDO PARA AVISO: ${tab.url}`);
+        browser.tabs.update(tabId, { url: warningUrl });
 
         browser.notifications.create({
           type: "basic",
           iconUrl: "icon/128.png",
-          title: reputation === 'danger' ? "🚨 Site Perigoso Bloqueado!" : "⚠️ Site Suspeito!",
-          message: "O Zero Phishing identificou que esta página pode ser maliciosa.",
+          title: "Acesso Bloqueado",
+          message: "Este site foi identificado como uma ameaça ou está na sua blacklist.",
           priority: 2,
         });
       }
 
-      // Update extension badge
+      // Atualiza o ícone (Badge)
+      const isSafe = result.safe || result.reason === 'whitelist';
       browser.action.setBadgeText({
-        text: result.safe ? "✓" : "!",
+        text: isSafe ? "✓" : "!",
         tabId,
       });
 
       browser.action.setBadgeBackgroundColor({
-        color: result.safe ? "#22c55e" : "#ef4444",
+        color: isSafe ? "#22c55e" : "#ef4444",
         tabId,
       });
+
     } catch (error) {
-      console.error("[Zero Phishing] Error checking URL:", error);
+      console.error("[Zero Phishing] Erro no Background:", error);
     }
   });
 
-  // Handle messages from popup or content scripts
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "CHECK_URL") {
       checkUrl(message.url)
-        .then((result) => sendResponse(result))
+        .then(sendResponse)
         .catch((err) => sendResponse({ safe: true, error: err.message }));
-      return true; // Keep channel open for async response
+      return true;
     }
   });
 });

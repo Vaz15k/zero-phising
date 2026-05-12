@@ -39,6 +39,11 @@ export default defineConfig({
       },
     },
 
+    options_ui: {
+      page: 'options/index.html',
+      open_in_tab: true,
+    },
+
     declarative_net_request: {
       rule_resources: [{
         id: 'blocked',

@@ -1,7 +1,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  width: 320px;
+  width: 350px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: #0f172a;
   color: #f1f5f9;
@@ -50,6 +50,7 @@ header p { font-size: 11px; color: #64748b; }
   font-size: 16px;
   cursor: pointer;
   line-height: 1;
+  color: #f1f5f9;
 }
 
 .icon-btn:hover { background: #334155; }

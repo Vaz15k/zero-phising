@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User, ParentalControl
+from .models import User, ParentalControl, CustomURLRule
 from .serializers import (
     RegisterSerializer,
     UserSerializer,
@@ -14,7 +14,27 @@ from .serializers import (
     LoginSerializer,
     PinLoginSerializer,
     ParentalControlSerializer,
+    CustomURLRuleSerializer,
 )
+
+
+class CustomURLRuleListCreateView(generics.ListCreateAPIView):
+    serializer_class = CustomURLRuleSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_queryset(self):
+        return CustomURLRule.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class CustomURLRuleDetailView(generics.RetrieveDestroyAPIView):
+    serializer_class = CustomURLRuleSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_queryset(self):
+        return CustomURLRule.objects.filter(user=self.request.user)
 
 
 class RegisterView(generics.CreateAPIView):

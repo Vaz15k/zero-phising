@@ -47,3 +47,23 @@ class ParentalControl(models.Model):
 
     def __str__(self):
         return f'{self.guardian} -> {self.dependent}'
+
+
+class CustomURLRule(models.Model):
+    RULE_CHOICES = (
+        ('whitelist', 'Whitelist'),
+        ('blacklist', 'Blacklist'),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='url_rules')
+    url_pattern = models.CharField(max_length=255)
+    rule_type = models.CharField(max_length=10, choices=RULE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'url_pattern')
+        verbose_name = 'Regra de URL Personalizada'
+        verbose_name_plural = 'Regras de URL Personalizadas'
+
+    def __str__(self):
+        return f"{self.user} - {self.rule_type} - {self.url_pattern}"

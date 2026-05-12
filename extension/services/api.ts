@@ -1,3 +1,5 @@
+import { getLocalRules, addLocalRule, deleteLocalRule as deleteFromStorage } from './storage';
+
 const API_BASE = import.meta.env.WXT_API_URL || 'http://127.0.0.1:8000';
 
 interface RequestOptions {
@@ -29,11 +31,9 @@ export async function request<T = unknown>(endpoint: string, options: RequestOpt
     'Content-Type': 'application/json',
   };
 
-  if (auth) {
-    const tokens = await getTokens();
-    if (tokens) {
-      headers['Authorization'] = `Bearer ${tokens.access}`;
-    }
+  const tokens = await getTokens();
+  if (auth && tokens) {
+    headers['Authorization'] = `Bearer ${tokens.access}`;
   }
 
   const config: RequestInit = { method, headers };
@@ -51,18 +51,15 @@ export async function request<T = unknown>(endpoint: string, options: RequestOpt
     throw new Error('Não foi possível conectar ao servidor.');
   }
 
-  if (response.status === 401 && auth) {
-    const tokens = await getTokens();
-    if (tokens) {
-      const refreshed = await refreshAccessToken(tokens.refresh);
-      if (refreshed) {
-        headers['Authorization'] = `Bearer ${refreshed}`;
-        config.headers = headers;
-        response = await fetch(url, config);
-      } else {
-        await clearTokens();
-        throw new Error('Sessão expirada. Faça login novamente.');
-      }
+  if (response.status === 401 && auth && tokens) {
+    const refreshed = await refreshAccessToken(tokens.refresh);
+    if (refreshed) {
+      headers['Authorization'] = `Bearer ${refreshed}`;
+      config.headers = headers;
+      response = await fetch(url, config);
+    } else {
+      await clearTokens();
+      throw new Error('Sessão expirada. Faça login novamente.');
     }
   }
 
@@ -89,5 +86,56 @@ async function refreshAccessToken(refresh: string): Promise<string | null> {
     return data.access;
   } catch {
     return null;
+  }
+}
+
+// Custom URL Rules
+export async function getUrlRules(): Promise<any[]> {
+  const tokens = await getTokens();
+  const localRules = await getLocalRules();
+  
+  if (!tokens) {
+    return localRules;
+  }
+
+  try {
+    const serverRules = await request<any[]>('/accounts/url-rules/');
+    return [...localRules, ...serverRules];
+  } catch (error) {
+    console.error('Error fetching URL rules from server:', error);
+    return localRules;
+  }
+}
+
+export async function addUrlRule(url_pattern: string, rule_type: 'whitelist' | 'blacklist'): Promise<any> {
+  const tokens = await getTokens();
+  if (!tokens) {
+    return await addLocalRule(url_pattern, rule_type);
+  }
+
+  return await request('/accounts/url-rules/', {
+    method: 'POST',
+    body: { url_pattern, rule_type }
+  });
+}
+
+export async function deleteUrlRule(id: string | number): Promise<void> {
+  if (typeof id === 'string' && id.startsWith('local_')) {
+    return await deleteFromStorage(id);
+  }
+
+  const url = `${API_BASE}/api/accounts/url-rules/${id}/`;
+  const tokens = await getTokens();
+  if (!tokens) throw new Error('Não autorizado');
+  
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${tokens.access}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error('Falha ao excluir regra no servidor');
   }
 }
