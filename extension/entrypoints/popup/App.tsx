@@ -35,6 +35,9 @@ export default function App() {
       {page === 'login' && <LoginPage onLogin={(s) => { setAuth(s); setPage('main'); }} onRegister={() => setPage('register')} onPinLogin={(s) => { setAuth(s); setPage('main'); }} onSkip={() => setPage('main')} />}
       {page === 'register' && <RegisterPage onRegister={(s) => { setAuth(s); setPage('main'); }} onBack={() => setPage('login')} />}
       {page === 'profile' && <ProfilePage user={auth.user!} onUpdate={(u) => setAuth({ user: u, isAuthenticated: true })} onBack={() => setPage('main')} />}
+      
+      {/* ADICIONE A NOVA LINHA EXATAMENTE AQUI: */}
+      {page === 'breaches' && <BreachCheckerPage onBack={() => setPage('main')} />}
 
       <footer>Zero Phishing · IFMT-CBA</footer>
     </>
@@ -442,4 +445,128 @@ function UrlChecker() {
   };
 
   return <div className="container">{renderContent()}</div>;
+}
+
+function BreachCheckerPage({ onBack }: { onBack: () => void }) {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [breaches, setBreaches] = useState<any[] | null>(null);
+
+  // Validação de formato de e-mail
+  const validateEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  const checkBreaches = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    if (!validateEmail(email)) {
+      setError('Por favor, insira um formato de e-mail válido.');
+      return;
+    }
+
+    setLoading(true);
+    setBreaches(null);
+    const cacheKey = `pwned_${email}`;
+
+    try {
+      // 1. Verifica o cache localmente
+      const cached = await browser.storage.local.get(cacheKey);
+      if (cached[cacheKey]) {
+        setBreaches(cached[cacheKey]);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Consulta à API HaveIBeenPwned
+      // Nota: A API de contas exige uma API Key ('hibp-api-key'). 
+      const response = await fetch(`https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}?truncateResponse=false`, {
+        headers: {
+          'hibp-api-key': 'SUA_API_KEY_AQUI', // Substitua pela chave da API ou endpoint do seu backend
+          'user-agent': 'Zero-Phishing-Extension'
+        }
+      });
+
+      if (response.status === 404) {
+        // Estado vazio: Não há vazamentos
+        setBreaches([]);
+        await browser.storage.local.set({ [cacheKey]: [] });
+      } else if (!response.ok) {
+        throw new Error('Erro ao consultar a API. Verifique a API Key ou tente novamente.');
+      } else {
+        const data = await response.json();
+        setBreaches(data);
+        // Salva o resultado cacheado localmente
+        await browser.storage.local.set({ [cacheKey]: data });
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro desconhecido ao verificar e-mail.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="container">
+      <div className="profile-top-bar">
+        <button className="icon-btn" onClick={onBack}>← Voltar</button>
+      </div>
+      <div className="auth-card" style={{ maxWidth: '100%' }}>
+        <div className="auth-logo">📧</div>
+        <h2>Vazamento de Dados</h2>
+        <p className="auth-sub">Verifique se seu e-mail foi exposto em vazamentos</p>
+
+        <form onSubmit={checkBreaches}>
+          <input 
+            className="auth-input" 
+            type="email" 
+            placeholder="Digite seu e-mail" 
+            value={email} 
+            onChange={(e) => setEmail(e.target.value)} 
+            required 
+          />
+          {error && <p className="auth-error">{error}</p>}
+          <button className="auth-btn" type="submit" disabled={loading}>
+            {loading ? 'Verificando...' : 'Verificar E-mail'}
+          </button>
+        </form>
+
+        {/* Resultados */}
+        {breaches !== null && (
+          <div className="breach-results" style={{ marginTop: '20px', textAlign: 'left' }}>
+            {breaches.length === 0 ? (
+              <div className="status-card status-safe" style={{ marginTop: '10px' }}>
+                <div className="status-icon">✅</div>
+                <div className="status-text">
+                  <h3>Nenhum vazamento!</h3>
+                  <p>Este e-mail não foi encontrado em bancos de dados públicos vazados.</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h3 style={{ color: '#ef4444', marginBottom: '10px' }}>
+                  ⚠️ Encontrado em {breaches.length} vazamento(s)
+                </h3>
+                <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
+                  {breaches.map((b: any, index: number) => (
+                    <div key={index} className="api-row" style={{ flexDirection: 'column', alignItems: 'flex-start', background: '#2a2a2a', padding: '10px', borderRadius: '8px', marginBottom: '10px' }}>
+                      <div className="api-name" style={{ color: '#fff', fontWeight: 'bold' }}>{b.Name}</div>
+                      <div className="api-sub" style={{ fontSize: '12px', color: '#aaa', margin: '4px 0' }}>
+                        📅 Data: {b.BreachDate}
+                      </div>
+                      <div className="api-sub" style={{ fontSize: '12px' }}>
+                        <strong>Dados expostos:</strong> {b.DataClasses.join(', ')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
