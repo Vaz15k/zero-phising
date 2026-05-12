@@ -26,7 +26,7 @@ export async function getSavedUser(): Promise<AuthState> {
 }
 
 export async function login(username: string, password: string): Promise<AuthState> {
-  const data = await request<{ user: User; access: string; refresh: string }>('/auth/login/', {
+  const data = await request<{ user: User; access: string; refresh: string }>('/accounts/login/', {
     method: 'POST',
     body: { username, password },
     auth: false,
@@ -38,7 +38,7 @@ export async function login(username: string, password: string): Promise<AuthSta
 }
 
 export async function pinLogin(username: string, pin: string): Promise<AuthState> {
-  const data = await request<{ user: User; access: string; refresh: string }>('/auth/pin-login/', {
+  const data = await request<{ user: User; access: string; refresh: string }>('/accounts/pin-login/', {
     method: 'POST',
     body: { username, pin },
     auth: false,
@@ -56,7 +56,7 @@ export async function register(
   firstName?: string,
   lastName?: string,
 ): Promise<AuthState> {
-  const data = await request<{ user: User; access: string; refresh: string }>('/auth/register/', {
+  const data = await request<{ user: User; access: string; refresh: string }>('/accounts/register/', {
     method: 'POST',
     body: { username, email, password, first_name: firstName || '', last_name: lastName || '' },
     auth: false,
@@ -68,12 +68,12 @@ export async function register(
 }
 
 export async function updateProfile(data: Partial<User>): Promise<User> {
-  await request<Partial<User>>('/auth/profile/', {
+  await request<Partial<User>>('/accounts/profile/', {
     method: 'PATCH',
     body: data,
   });
 
-  const user = await request<User>('/auth/profile/', { method: 'GET' });
+  const user = await request<User>('/accounts/profile/', { method: 'GET' });
   await browser.storage.local.set({ current_user: user });
   return user;
 }

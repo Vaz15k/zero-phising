@@ -73,7 +73,7 @@ export async function request<T = unknown>(endpoint: string, options: RequestOpt
 
 async function refreshAccessToken(refresh: string): Promise<string | null> {
   try {
-    const response = await fetch(`${API_BASE}/api/auth/refresh/`, {
+    const response = await fetch(`${API_BASE}/api/accounts/refresh/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh }),
