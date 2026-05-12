@@ -17,7 +17,7 @@ function matchDomain(urlPattern: string, domain: string): boolean {
 
   if (p.includes('*')) {
     const regexStr = '^' + p
-      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/[.+?^${}()|[\]\\*]/g, '\\$&')
       .replace(/\\\*/g, '.*') + '$';
     try {
       return new RegExp(regexStr).test(d);
