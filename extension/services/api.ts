@@ -1,4 +1,4 @@
-import { getLocalRules, addLocalRule, deleteLocalRule as deleteFromStorage, deleteLocalRuleByPattern } from './storage';
+import { getLocalRules, addLocalRule, deleteLocalRule as deleteFromStorage, deleteLocalRuleByPattern, UrlRule } from './storage';
 
 const API_BASE = import.meta.env.WXT_API_URL || 'http://127.0.0.1:8000';
 
@@ -90,7 +90,7 @@ async function refreshAccessToken(refresh: string): Promise<string | null> {
 }
 
 // Custom URL Rules
-export async function getUrlRules(): Promise<any[]> {
+export async function getUrlRules(): Promise<UrlRule[]> {
   const tokens = await getTokens();
   const localRules = await getLocalRules();
   
@@ -99,7 +99,7 @@ export async function getUrlRules(): Promise<any[]> {
   }
 
   try {
-    const serverRules = await request<any[]>('/accounts/url-rules/');
+    const serverRules = await request<UrlRule[]>('/accounts/url-rules/');
     
     // Deduplicar: preferir as regras do servidor (que têm IDs reais para deleção no backend)
     // Mas manter as locais que ainda não foram sincronizadas
@@ -113,7 +113,7 @@ export async function getUrlRules(): Promise<any[]> {
   }
 }
 
-export async function addUrlRule(url_pattern: string, rule_type: 'whitelist' | 'blacklist'): Promise<any> {
+export async function addUrlRule(url_pattern: string, rule_type: 'whitelist' | 'blacklist'): Promise<UrlRule> {
   // Sempre adiciona localmente primeiro para garantir feedback imediato e funcionamento offline
   const localRule = await addLocalRule(url_pattern, rule_type);
 
@@ -134,7 +134,73 @@ export async function addUrlRule(url_pattern: string, rule_type: 'whitelist' | '
   return localRule;
 }
 
-export async function deleteUrlRule(rule: any): Promise<void> {
+// Active Block Domains Cache
+let blockDomainsCache: Set<string> | null = null;
+let blockDomainsCacheTime = 0;
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutos
+
+export async function getActiveBlockDomains(): Promise<Set<string>> {
+  const now = Date.now();
+  if (blockDomainsCache && (now - blockDomainsCacheTime) < CACHE_TTL) {
+    return blockDomainsCache;
+  }
+
+  const tokens = await getTokens();
+  if (!tokens) {
+    return new Set();
+  }
+
+  try {
+    const response = await request<{ domains: string[] }>('/accounts/active-block-domains/');
+    blockDomainsCache = new Set(response.domains.map(d => d.toLowerCase()));
+    blockDomainsCacheTime = now;
+    return blockDomainsCache;
+  } catch (error) {
+    console.error('Error fetching block domains:', error);
+    return blockDomainsCache || new Set();
+  }
+}
+
+export function clearBlockDomainsCache(): void {
+  blockDomainsCache = null;
+  blockDomainsCacheTime = 0;
+}
+
+export interface BlockList {
+  id: number;
+  name: string;
+  category: string;
+  description: string;
+  source_url: string;
+  domain_count: number;
+  is_activated: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getBlockLists(): Promise<BlockList[]> {
+  const tokens = await getTokens();
+  if (!tokens) return [];
+  try {
+    return await request<BlockList[]>('/accounts/block-lists/');
+  } catch (error) {
+    console.error('Error fetching block lists:', error);
+    return [];
+  }
+}
+
+export async function activateBlockList(blockListId: number): Promise<unknown> {
+  const result = await request(`/accounts/block-lists/${blockListId}/activate/`, { method: 'POST' });
+  clearBlockDomainsCache();
+  return result;
+}
+
+export async function deactivateBlockList(blockListId: number): Promise<unknown> {
+  const result = await request(`/accounts/block-lists/${blockListId}/deactivate/`, { method: 'POST' });
+  clearBlockDomainsCache();
+  return result;
+}
+export async function deleteUrlRule(rule: UrlRule): Promise<void> {
   const id = rule.id;
   
   // 1. Sempre tenta remover localmente

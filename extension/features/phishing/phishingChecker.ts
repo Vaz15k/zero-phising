@@ -1,8 +1,17 @@
 // phishingChecker.ts
 import { checkGoogleSafeBrowsing, checkVirusTotal } from './phishingApi';
-import { getUrlRules } from '../../services/api';
+import { getUrlRules, getActiveBlockDomains } from '../../services/api';
 
-const cache = new Map<string, { result: any; expires: number }>();
+interface PhishingCheckResult {
+  safe: boolean;
+  checkedAt: number;
+  skipped?: boolean;
+  reason?: string;
+  google?: unknown;
+  virustotal?: unknown;
+}
+
+const cache = new Map<string, { result: PhishingCheckResult; expires: number }>();
 
 function matchDomain(urlPattern: string, domain: string): boolean {
   let p = urlPattern.toLowerCase().trim();
@@ -21,7 +30,7 @@ function matchDomain(urlPattern: string, domain: string): boolean {
       .replace(/\\\*/g, '.*') + '$';
     try {
       return new RegExp(regexStr).test(d);
-    } catch (e) {
+    } catch {
       return false;
     }
   }
@@ -29,7 +38,7 @@ function matchDomain(urlPattern: string, domain: string): boolean {
   return d === p || d.endsWith('.' + p);
 }
 
-export async function checkUrl(url: string): Promise<any> {
+export async function checkUrl(url: string): Promise<PhishingCheckResult> {
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     return { safe: true, skipped: true };
   }
@@ -38,24 +47,43 @@ export async function checkUrl(url: string): Promise<any> {
     const urlObj = new URL(url);
     const domain = urlObj.hostname;
     const rules = await getUrlRules();
-    
+
     if (rules && rules.length > 0) {
-      // FILTRAR E LOGAR REGRAS PARA DEBUG
       const whitelistRules = rules.filter(r => r.rule_type === 'whitelist');
       const blacklistRules = rules.filter(r => r.rule_type === 'blacklist');
 
-      // 1. CHECAR WHITELIST PRIMEIRO (SOBREPÕE TUDO)
       const matchedWhitelist = whitelistRules.find(r => matchDomain(r.url_pattern, domain));
       if (matchedWhitelist) {
         console.log(`[Zero Phishing] WHITELIST GANHOU: ${domain} (Regra: ${matchedWhitelist.url_pattern})`);
         return { safe: true, skipped: true, reason: 'whitelist', checkedAt: Date.now() };
       }
 
-      // 2. CHECAR BLACKLIST DEPOIS
       const matchedBlacklist = blacklistRules.find(r => matchDomain(r.url_pattern, domain));
       if (matchedBlacklist) {
         console.log(`[Zero Phishing] BLACKLIST ATIVA: ${domain} (Regra: ${matchedBlacklist.url_pattern})`);
         return { safe: false, reason: 'blacklist', checkedAt: Date.now() };
+      }
+    }
+
+    const blockDomains = await getActiveBlockDomains();
+    if (blockDomains.size > 0) {
+      let checkDomain = domain.toLowerCase();
+      if (checkDomain.startsWith('www.')) {
+        checkDomain = checkDomain.substring(4);
+      }
+
+      if (blockDomains.has(checkDomain)) {
+        console.log(`[Zero Phishing] DEFAULT BLOCK LIST: ${domain}`);
+        return { safe: false, reason: 'blocklist', checkedAt: Date.now() };
+      }
+
+      const parts = checkDomain.split('.');
+      for (let i = 1; i < parts.length - 1; i++) {
+        const parent = parts.slice(i).join('.');
+        if (blockDomains.has(parent)) {
+          console.log(`[Zero Phishing] DEFAULT BLOCK LIST (parent): ${domain} -> ${parent}`);
+          return { safe: false, reason: 'blocklist', checkedAt: Date.now() };
+        }
       }
     }
   } catch (error) {

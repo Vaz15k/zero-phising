@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import User, ParentalControl, CustomURLRule
+from .models import User, ParentalControl, CustomURLRule, DefaultBlockList, UserBlockListActivation
 
 
 class CustomURLRuleSerializer(serializers.ModelSerializer):
@@ -77,3 +77,31 @@ class ParentalControlSerializer(serializers.ModelSerializer):
         if request and request.user == value:
             raise serializers.ValidationError('Um usuário não pode ser seu próprio dependente.')
         return value
+
+
+class DefaultBlockListSerializer(serializers.ModelSerializer):
+    is_activated = serializers.SerializerMethodField()
+    domain_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DefaultBlockList
+        fields = ('id', 'name', 'category', 'description', 'source_url',
+                  'domain_count', 'is_activated', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+    def get_is_activated(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        return UserBlockListActivation.objects.filter(
+            user=request.user,
+            block_list=obj,
+            is_active=True,
+        ).exists()
+
+    def get_domain_count(self, obj):
+        return obj.domains.count()
+
+
+class ActivateBlockListSerializer(serializers.Serializer):
+    block_list_id = serializers.IntegerField()

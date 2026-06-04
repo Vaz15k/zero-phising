@@ -1,17 +1,21 @@
 import { useState, useEffect } from 'react';
-import { getUrlRules, addUrlRule, deleteUrlRule } from '../../services/api';
-import { getSavedUser, login, register, logout, User, AuthState } from '../../services/auth';
-import { Shield, ShieldAlert, CheckCircle, Trash2, Plus, LogOut, User as UserIcon, Settings, Globe } from 'lucide-react';
+import { getUrlRules, addUrlRule, deleteUrlRule, getBlockLists, activateBlockList, deactivateBlockList, BlockList } from '../../services/api';
+import type { UrlRule } from '../../services/storage';
+import { getSavedUser, login, register, logout, AuthState } from '../../services/auth';
+import { Shield, ShieldAlert, CheckCircle, Trash2, Plus, LogOut, User as UserIcon, Globe, List, ToggleLeft, ToggleRight } from 'lucide-react';
 
 export default function App() {
-  const [rules, setRules] = useState<any[]>([]);
+  const [rules, setRules] = useState<UrlRule[]>([]);
   const [auth, setAuth] = useState<AuthState>({ user: null, isAuthenticated: false });
   const [newWhitelist, setNewWhitelist] = useState('');
   const [newBlacklist, setNewBlacklist] = useState('');
-  const [tab, setTab] = useState<'rules' | 'login' | 'register'>('rules');
+  const [tab, setTab] = useState<'rules' | 'login' | 'register' | 'blocklists'>('rules');
+  const [blockLists, setBlockLists] = useState<BlockList[]>([]);
+  const [loadingLists, setLoadingLists] = useState(false);
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadData() {
@@ -19,6 +23,25 @@ export default function App() {
     setRules(rulesData || []);
     const authState = await getSavedUser();
     setAuth(authState);
+    if (authState.isAuthenticated) {
+      loadBlockLists();
+    }
+  }
+
+  async function loadBlockLists() {
+    setLoadingLists(true);
+    const lists = await getBlockLists();
+    setBlockLists(lists);
+    setLoadingLists(false);
+  }
+
+  async function handleToggleBlockList(list: BlockList) {
+    if (list.is_activated) {
+      await deactivateBlockList(list.id);
+    } else {
+      await activateBlockList(list.id);
+    }
+    await loadBlockLists();
   }
 
   async function handleAddRule(domain: string, type: 'whitelist' | 'blacklist') {
@@ -29,7 +52,7 @@ export default function App() {
     await loadData();
   }
 
-  async function handleDelete(rule: any) {
+  async function handleDelete(rule: UrlRule) {
     await deleteUrlRule(rule);
     await loadData();
   }
@@ -50,7 +73,9 @@ export default function App() {
               <UserIcon size={20} />
               <span>{auth.user?.first_name || auth.user?.username}</span>
             </div>
-            <button className="btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={async () => { await logout(); await loadData(); }}>
+            {tab !== 'blocklists' && <button className="btn-primary" style={{ background: '#8b5cf6' }} onClick={() => { setTab('blocklists'); loadBlockLists(); }}><List size={16} style={{ marginRight: '4px' }} />Listas Padrão</button>}
+            {tab !== 'rules' && <button className="btn-primary" style={{ background: '#cbd5e1', color: '#1e293b' }} onClick={() => setTab('rules')}>Regras</button>}
+            <button className="btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={async () => { await logout(); setTab('rules'); await loadData(); }}>
               <LogOut size={16} /> Sair
             </button>
           </div>
@@ -71,7 +96,83 @@ export default function App() {
         <RegisterForm onRegister={async () => { await loadData(); setTab('rules'); }} onSwitch={() => setTab('login')} />
       )}
 
-      {(tab === 'rules' || auth.isAuthenticated) && (
+      {tab === 'blocklists' && auth.isAuthenticated && (
+        <div>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f1f5f9', marginBottom: '10px' }}>
+            <List size={24} color="#a78bfa" /> Listas de Bloqueio Padrão
+          </h2>
+          <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '20px' }}>
+            Ative listas pré-definidas de bloqueio por categoria. Os domínios destas listas serão bloqueados automaticamente.
+          </p>
+          {loadingLists ? (
+            <p style={{ color: '#94a3b8' }}>Carregando listas...</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {blockLists.map(list => (
+                <div key={list.id} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '18px 22px',
+                  background: list.is_activated ? '#0f2818' : '#0f172a',
+                  border: `1px solid ${list.is_activated ? '#166534' : '#334155'}`,
+                  borderRadius: '10px',
+                  transition: 'all 0.2s ease',
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                      <strong style={{ fontSize: '15px', color: '#e2e8f0' }}>{list.name}</strong>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        padding: '2px 10px',
+                        borderRadius: '10px',
+                        background: list.is_activated ? '#166534' : '#1e293b',
+                        color: list.is_activated ? '#4ade80' : '#64748b',
+                        border: `1px solid ${list.is_activated ? '#22c55e44' : '#334155'}`,
+                      }}>
+                        {list.is_activated ? 'ATIVADO' : 'DESATIVADO'}
+                      </span>
+                    </div>
+                    <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#94a3b8' }}>{list.description}</p>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>{list.domain_count.toLocaleString()} domínios</span>
+                  </div>
+                  <button
+                    onClick={() => handleToggleBlockList(list)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: '#ffffff',
+                      background: list.is_activated ? '#dc2626' : '#16a34a',
+                      transition: 'all 0.15s ease',
+                      minWidth: '130px',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {list.is_activated ? (
+                      <><ToggleRight size={20} /> Desativar</>
+                    ) : (
+                      <><ToggleLeft size={20} /> Ativar</>
+                    )}
+                  </button>
+                </div>
+              ))}
+              {blockLists.length === 0 && (
+                <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Nenhuma lista disponível. Execute o comando seed no servidor.</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'rules' && (
         <>
           <div className="auth-status">
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -176,8 +277,8 @@ function LoginForm({ onLogin, onSwitch }: { onLogin: () => void, onSwitch: () =>
     try {
       await login(username, password);
       onLogin();
-    } catch (err: any) {
-      setError(err.message || 'Erro ao entrar');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao entrar');
     } finally {
       setLoading(false);
     }
@@ -208,8 +309,8 @@ function RegisterForm({ onRegister, onSwitch }: { onRegister: () => void, onSwit
     try {
       await register(form.username, form.email, form.password, form.first_name, '');
       onRegister();
-    } catch (err: any) {
-      setError(err.message || 'Erro ao registrar');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao registrar');
     } finally {
       setLoading(false);
     }

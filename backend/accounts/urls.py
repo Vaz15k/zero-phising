@@ -27,4 +27,24 @@ urlpatterns = [
         views.CustomURLRuleDetailView.as_view(),
         name='url-rules-detail',
     ),
+    path(
+        'block-lists/',
+        views.BlockListListView.as_view(),
+        name='block-lists-list',
+    ),
+    path(
+        'block-lists/<int:pk>/activate/',
+        views.BlockListActivateView.as_view(),
+        name='block-lists-activate',
+    ),
+    path(
+        'block-lists/<int:pk>/deactivate/',
+        views.BlockListDeactivateView.as_view(),
+        name='block-lists-deactivate',
+    ),
+    path(
+        'active-block-domains/',
+        views.ActiveBlockDomainsView.as_view(),
+        name='active-block-domains',
+    ),
 ]

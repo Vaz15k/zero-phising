@@ -1,6 +1,11 @@
 // phishingApi.ts
 // Wrapper functions for external phishing detection APIs.
 
+interface GSBThreatMatch {
+  threatType: string;
+  platformType: string;
+}
+
 /**
  * Checks a URL against Google Safe Browsing API v4.
  */
@@ -34,13 +39,13 @@ export async function checkGoogleSafeBrowsing(url: string) {
     const threats = data.matches || [];
     return {
       safe: threats.length === 0,
-      threats: threats.map((t: any) => ({
+      threats: threats.map((t: GSBThreatMatch) => ({
         type: t.threatType,
         platform: t.platformType,
       })),
     };
-  } catch (e: any) {
-    return { error: `Error contacting Google Safe Browsing: ${e.message}`, safe: true };
+  } catch (e: unknown) {
+    return { error: `Error contacting Google Safe Browsing: ${e instanceof Error ? e.message : String(e)}`, safe: true };
   }
 }
 
@@ -92,9 +97,9 @@ export async function checkVirusTotal(url: string) {
       stats,
       permalink: `https://www.virustotal.com/gui/url/${getUrlId}`,
       maliciousCount: malicious,
-      totalEngines: Object.values(stats).reduce((a: any, b: any) => a + b, 0),
+      totalEngines: Object.values(stats as Record<string, number>).reduce((a: number, b: number) => a + b, 0),
     };
-  } catch (e: any) {
-    return { error: `VirusTotal request error: ${e.message}`, safe: true };
+  } catch (e: unknown) {
+    return { error: `VirusTotal request error: ${e instanceof Error ? e.message : String(e)}`, safe: true };
   }
 }
