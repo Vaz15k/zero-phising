@@ -69,15 +69,16 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
           <p className="header-subtle">Nao logado · <button className="link-inline" onClick={() => onNavigate('login')}>Entrar</button></p>
         )}
       </div>
-      <div className="header-menu">
+<div className="header-menu">
         <button className="icon-btn" onClick={openOptions} title="Configurações (Opções)"><Settings size={18} /></button>
         {isAuthenticated && (
           <>
+            <button className="icon-btn" onClick={() => onNavigate('breaches')} title="Verificar Vazamentos">🔍</button>
             <button className="icon-btn" onClick={() => onNavigate('profile')} title="Perfil"><UserIcon size={18} /></button>
             <button className="icon-btn" onClick={onLogout} title="Sair"><LogOut size={18} /></button>
           </>
         )}
-      </div>
+      </div> Stashed changes
     </header>
   );
 }

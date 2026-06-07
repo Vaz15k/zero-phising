@@ -10,4 +10,5 @@ export interface User {
   last_login: string | null;
 }
 
+// No arquivo: zero-phishing/extension/types/index.ts
 export type PopupPage = 'main' | 'login' | 'register' | 'profile' | 'parental-control' | 'breaches';
