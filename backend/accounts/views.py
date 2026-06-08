@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User, ParentalControl, CustomURLRule, DefaultBlockList, DefaultBlockListDomain, UserBlockListActivation
+from .models import User, ParentalControl, CustomURLRule, DefaultBlockList, DefaultBlockListDomain, UserBlockListActivation, BlockedAccess
 from .serializers import (
     RegisterSerializer,
     UserSerializer,
@@ -16,6 +16,7 @@ from .serializers import (
     ParentalControlSerializer,
     CustomURLRuleSerializer,
     DefaultBlockListSerializer,
+    BlockedAccessSerializer,
 )
 
 
@@ -210,3 +211,25 @@ class ActiveBlockDomainsView(APIView):
         ).values_list('domain', flat=True)
 
         return Response({'domains': list(domains)})
+
+
+class BlockedAccessHistoryView(generics.ListAPIView):
+    serializer_class = BlockedAccessSerializer
+    permission_classes = (permissions.IsAdminUser,)
+
+    def get_queryset(self):
+        queryset = BlockedAccess.objects.all()
+        source = self.request.query_params.get('source', None)
+        
+        if source:
+            queryset = queryset.filter(block_source__iexact=source)
+            
+        return queryset
+    
+class ReportBlockView(generics.CreateAPIView):
+    serializer_class = BlockedAccessSerializer
+    permission_classes = (permissions.IsAuthenticated,) # Qualquer usuário logado pode relatar
+
+    def perform_create(self, serializer):
+        # Salva automaticamente o usuário logado como o dono do bloqueio
+        serializer.save(user=self.request.user)

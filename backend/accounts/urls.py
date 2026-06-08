@@ -47,4 +47,14 @@ urlpatterns = [
         views.ActiveBlockDomainsView.as_view(),
         name='active-block-domains',
     ),
+    path(
+        'blocked-history/',
+        views.BlockedAccessHistoryView.as_view(),
+        name='blocked-history',
+    ),
+    path(
+        'report-block/',
+        views.ReportBlockView.as_view(),
+        name='report-block',
+    ),
 ]

@@ -1,4 +1,5 @@
 import { checkUrl } from '../features/phishing/phishingChecker';
+import { reportBlockedAccess } from '../services/api';
 
 export default defineBackground(() => {
   browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {

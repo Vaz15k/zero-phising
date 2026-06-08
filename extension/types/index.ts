@@ -10,5 +10,15 @@ export interface User {
   last_login: string | null;
 }
 
-// No arquivo: zero-phishing/extension/types/index.ts
 export type PopupPage = 'main' | 'login' | 'register' | 'profile' | 'parental-control' | 'breaches';
+
+export interface BlockedAccess {
+  id: number;
+  url: string;
+  timestamp: string;
+  user: number | null;
+  username: string | null;
+  group: number | null;
+  group_name: string | null;
+  block_source: 'USER' | 'GROUP';
+}
