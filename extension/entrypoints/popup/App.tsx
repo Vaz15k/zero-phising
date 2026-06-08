@@ -48,7 +48,14 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
   if (currentPage !== 'main') return null;
 
   const openOptions = () => {
-    browser.runtime.openOptionsPage();
+    const width = Math.max(900, Math.floor(window.screen.availWidth * 0.6));
+    const height = Math.max(700, Math.floor(window.screen.availHeight * 0.9));
+    browser.windows.create({
+      url: browser.runtime.getURL('/options.html') + '?popup=1',
+      type: 'popup',
+      width,
+      height,
+    });
   };
 
   return (

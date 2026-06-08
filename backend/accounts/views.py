@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User, ParentalControl, CustomURLRule
+from .models import User, ParentalControl, CustomURLRule, DefaultBlockList, DefaultBlockListDomain, UserBlockListActivation
 from .serializers import (
     RegisterSerializer,
     UserSerializer,
@@ -15,6 +15,7 @@ from .serializers import (
     PinLoginSerializer,
     ParentalControlSerializer,
     CustomURLRuleSerializer,
+    DefaultBlockListSerializer,
 )
 
 
@@ -145,3 +146,67 @@ class ParentalControlDetailView(generics.RetrieveDestroyAPIView):
 
     def get_queryset(self):
         return ParentalControl.objects.filter(guardian=self.request.user)
+
+
+class BlockListListView(generics.ListAPIView):
+    serializer_class = DefaultBlockListSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+    queryset = DefaultBlockList.objects.all()
+
+
+class BlockListActivateView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, pk=None):
+        try:
+            block_list = DefaultBlockList.objects.get(pk=pk)
+        except DefaultBlockList.DoesNotExist:
+            return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+
+        activation, created = UserBlockListActivation.objects.update_or_create(
+            user=request.user,
+            block_list=block_list,
+            defaults={'is_active': True},
+        )
+        return Response({
+            'id': activation.id,
+            'block_list_id': block_list.id,
+            'block_list_name': block_list.name,
+            'is_active': activation.is_active,
+            'message': f'Lista "{block_list.name}" ativada com sucesso.',
+        })
+
+
+class BlockListDeactivateView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, pk=None):
+        try:
+            block_list = DefaultBlockList.objects.get(pk=pk)
+        except DefaultBlockList.DoesNotExist:
+            return Response({'error': 'Lista não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+
+        UserBlockListActivation.objects.filter(
+            user=request.user,
+            block_list=block_list,
+        ).update(is_active=False)
+
+        return Response({
+            'message': f'Lista "{block_list.name}" desativada com sucesso.',
+        })
+
+
+class ActiveBlockDomainsView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request):
+        activated_lists = UserBlockListActivation.objects.filter(
+            user=request.user,
+            is_active=True,
+        ).values_list('block_list_id', flat=True)
+
+        domains = DefaultBlockListDomain.objects.filter(
+            block_list_id__in=activated_lists,
+        ).values_list('domain', flat=True)
+
+        return Response({'domains': list(domains)})

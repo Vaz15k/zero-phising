@@ -8,13 +8,33 @@ const WarningPage = () => {
   const blockedUrl = params.get('url') || 'página protegida';
   const reason = params.get('reason') || 'phishing';
 
-  const isBlacklist = reason === 'blacklist';
+  const isCustomBlacklist = reason === 'blacklist';
+  const isDefaultBlocklist = reason === 'blocklist';
+  const isBlocked = isCustomBlacklist || isDefaultBlocklist;
+
+  let badgeClass: string;
+  let badgeText: string;
+  let description: string;
+
+  if (isCustomBlacklist) {
+    badgeClass = 'custom-blacklist';
+    badgeText = '🚫 BLOQUEADO POR SUA LISTA PESSOAL';
+    description = 'Você adicionou este site manualmente à sua lista de bloqueios.';
+  } else if (isDefaultBlocklist) {
+    badgeClass = 'default-blocklist';
+    badgeText = '🛡️ BLOQUEADO POR LISTA DE CATEGORIA';
+    description = 'Este site foi bloqueado por uma lista de bloqueio padrão.';
+  } else {
+    badgeClass = 'phishing';
+    badgeText = '⚠️ DETECTADO COMO AMEAÇA DE PHISHING';
+    description = 'Este site foi identificado como uma ameaça à sua segurança digital.';
+  }
 
   return (
     <div className="warning-page-wrapper">
       <div className="card-container">
         <div className="shield-box">
-          <ShieldAlert size={80} color="#3b82f6" />
+          <ShieldAlert size={80} color={isBlocked ? '#f59e0b' : '#ef4444'} />
         </div>
         
         <h1>Acesso Bloqueado</h1>
@@ -23,16 +43,17 @@ const WarningPage = () => {
           <p>
             O <strong>Zero Phishing</strong> interrompeu o acesso a este site para garantir sua integridade digital.
           </p>
+          <p style={{ fontSize: '14px', color: '#94a3b8', marginTop: '-8px', marginBottom: '20px' }}>
+            {description}
+          </p>
           
           <div className="url-display">
-            <span>SITE TENTADO:</span>
+            <span>SITE BLOQUEADO:</span>
             <code>{blockedUrl}</code>
           </div>
 
-          <div className={`status-badge ${isBlacklist ? 'blacklist' : 'phishing'}`}>
-            {isBlacklist 
-              ? '🚫 BLOQUEADO POR SUA LISTA PERSONALIZADA' 
-              : '⚠️ DETECTADO COMO AMEAÇA DE PHISHING'}
+          <div className={`status-badge ${badgeClass}`}>
+            {badgeText}
           </div>
         </div>
 

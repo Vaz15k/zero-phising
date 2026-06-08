@@ -1,8 +1,18 @@
 // phishingChecker.ts
 import { checkGoogleSafeBrowsing, checkVirusTotal } from './phishingApi';
-import { getUrlRules, UrlRule } from '../../services/api';
+import { getUrlRules, getActiveBlockDomains, UrlRule } from '../../services/api';
 
-const cache = new Map<string, { result: any; expires: number }>();
+interface PhishingCheckResult {
+  safe: boolean;
+  checkedAt: number;
+  skipped?: boolean;
+  reason?: string;
+  source?: string;
+  google?: unknown;
+  virustotal?: unknown;
+}
+
+const cache = new Map<string, { result: PhishingCheckResult; expires: number }>();
 
 function matchDomain(urlPattern: string, domain: string): boolean {
   let p = urlPattern.toLowerCase().trim();
@@ -29,16 +39,16 @@ function matchDomain(urlPattern: string, domain: string): boolean {
   return d === p || d.endsWith('.' + p);
 }
 
-export async function checkUrl(url: string): Promise<any> {
+export async function checkUrl(url: string): Promise<PhishingCheckResult> {
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return { safe: true, skipped: true };
+    return { safe: true, skipped: true, checkedAt: Date.now() };
   }
 
   try {
     const urlObj = new URL(url);
     const domain = urlObj.hostname;
     const rules = await getUrlRules();
-    
+
     if (rules && rules.length > 0) {
       const familyRules = rules.filter(r => r.source === 'family');
       const personalRules = rules.filter(r => r.source !== 'family');
@@ -47,6 +57,28 @@ export async function checkUrl(url: string): Promise<any> {
 
       const personalResult = evaluateRules(personalRules, domain, 'PESSOAL');
       if (personalResult) return personalResult;
+    }
+
+    const blockDomains = await getActiveBlockDomains();
+    if (blockDomains.size > 0) {
+      let checkDomain = domain.toLowerCase();
+      if (checkDomain.startsWith('www.')) {
+        checkDomain = checkDomain.substring(4);
+      }
+
+      if (blockDomains.has(checkDomain)) {
+        console.log(`[Zero Phishing] DEFAULT BLOCK LIST: ${domain}`);
+        return { safe: false, reason: 'blocklist', checkedAt: Date.now() };
+      }
+
+      const parts = checkDomain.split('.');
+      for (let i = 1; i < parts.length - 1; i++) {
+        const parent = parts.slice(i).join('.');
+        if (blockDomains.has(parent)) {
+          console.log(`[Zero Phishing] DEFAULT BLOCK LIST (parent): ${domain} -> ${parent}`);
+          return { safe: false, reason: 'blocklist', checkedAt: Date.now() };
+        }
+      }
     }
   } catch (error) {
     console.error("[Zero Phishing] Erro nas regras:", error);
@@ -72,7 +104,7 @@ export async function checkUrl(url: string): Promise<any> {
   return result;
 }
 
-function evaluateRules(rules: UrlRule[], domain: string, label: string): any | null {
+function evaluateRules(rules: UrlRule[], domain: string, label: string): PhishingCheckResult | null {
   const whitelistRules = rules.filter(r => r.rule_type === 'whitelist');
   const blacklistRules = rules.filter(r => r.rule_type === 'blacklist');
 

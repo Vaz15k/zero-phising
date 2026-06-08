@@ -3,6 +3,9 @@ import {
   getUrlRules,
   addUrlRule,
   deleteUrlRule,
+  getBlockLists,
+  activateBlockList,
+  deactivateBlockList,
   getFamily,
   createFamily,
   getFamilyInvitations,
@@ -18,6 +21,7 @@ import {
   Family,
   FamilyInvitation,
   FamilyNotification,
+  BlockList,
   UrlRule,
 } from '../../services/api';
 import { getSavedUser, login, register, logout, AuthState } from '../../services/auth';
@@ -27,6 +31,7 @@ import {
   CheckCircle,
   Crown,
   Globe,
+  List,
   LogOut,
   Mail,
   Plus,
@@ -36,10 +41,12 @@ import {
   User as UserIcon,
   UserPlus,
   Users,
+  ToggleLeft,
+  ToggleRight,
   X,
 } from 'lucide-react';
 
-type Tab = 'rules' | 'family' | 'login' | 'register';
+type Tab = 'rules' | 'family' | 'login' | 'register' | 'blocklists';
 type RuleType = 'whitelist' | 'blacklist';
 type Feedback = { type: 'success' | 'error'; message: string } | null;
 
@@ -53,9 +60,12 @@ export default function App() {
   const [newWhitelist, setNewWhitelist] = useState('');
   const [newBlacklist, setNewBlacklist] = useState('');
   const [tab, setTab] = useState<Tab>('rules');
+  const [blockLists, setBlockLists] = useState<BlockList[]>([]);
+  const [loadingLists, setLoadingLists] = useState(false);
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadData() {
@@ -68,18 +78,37 @@ export default function App() {
       setSentInvitations([]);
       setReceivedInvitations([]);
       setNotifications([]);
+      setBlockLists([]);
       return;
     }
 
-    const [familyData, invitationData, notificationData] = await Promise.all([
+    const [familyData, invitationData, notificationData, blockListData] = await Promise.all([
       getFamily(),
       getFamilyInvitations(),
       getFamilyNotifications(),
+      getBlockLists(),
     ]);
     setFamily(familyData);
     setSentInvitations(invitationData.sent);
     setReceivedInvitations(invitationData.received);
     setNotifications(notificationData);
+    setBlockLists(blockListData);
+  }
+
+  async function loadBlockLists() {
+    setLoadingLists(true);
+    const lists = await getBlockLists();
+    setBlockLists(lists);
+    setLoadingLists(false);
+  }
+
+  async function handleToggleBlockList(list: BlockList) {
+    if (list.is_activated) {
+      await deactivateBlockList(list.id);
+    } else {
+      await activateBlockList(list.id);
+    }
+    await loadBlockLists();
   }
 
   async function handleAddRule(domain: string, type: RuleType) {
@@ -112,7 +141,7 @@ export default function App() {
               <UserIcon size={20} />
               <span>{auth.user?.first_name || auth.user?.username}</span>
             </div>
-            <button className="btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={async () => { await logout(); await loadData(); setTab('rules'); }}>
+            <button className="btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={async () => { await logout(); setTab('rules'); await loadData(); }}>
               <LogOut size={16} /> Sair
             </button>
           </div>
@@ -133,6 +162,9 @@ export default function App() {
           <button className={tab === 'family' ? 'tab-active' : ''} onClick={() => setTab('family')}>
             <Users size={16} /> Família
           </button>
+          <button className={tab === 'blocklists' ? 'tab-active' : ''} onClick={() => { setTab('blocklists'); loadBlockLists(); }}>
+            <List size={16} /> Listas Padrão
+          </button>
         </div>
       )}
 
@@ -152,6 +184,14 @@ export default function App() {
           notifications={notifications}
           currentUserId={auth.user?.id}
           onRefresh={loadData}
+        />
+      )}
+
+      {tab === 'blocklists' && auth.isAuthenticated && (
+        <BlockListsPanel
+          blockLists={blockLists}
+          loadingLists={loadingLists}
+          onToggle={handleToggleBlockList}
         />
       )}
 
@@ -258,6 +298,93 @@ function RuleColumn({
         {rules.length === 0 && <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Nenhuma regra configurada.</p>}
       </ul>
     </section>
+  );
+}
+
+function BlockListsPanel({
+  blockLists,
+  loadingLists,
+  onToggle,
+}: {
+  blockLists: BlockList[];
+  loadingLists: boolean;
+  onToggle: (list: BlockList) => Promise<void>;
+}) {
+  return (
+    <div>
+      <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f1f5f9', marginBottom: '10px' }}>
+        <List size={24} color="#a78bfa" /> Listas de Bloqueio Padrão
+      </h2>
+      <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '20px' }}>
+        Ative listas pré-definidas de bloqueio por categoria. Os domínios destas listas serão bloqueados automaticamente.
+      </p>
+      {loadingLists ? (
+        <p style={{ color: '#94a3b8' }}>Carregando listas...</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {blockLists.map(list => (
+            <div key={list.id} style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+              padding: '18px 22px',
+              background: list.is_activated ? '#0f2818' : '#0f172a',
+              border: `1px solid ${list.is_activated ? '#166534' : '#334155'}`,
+              borderRadius: '10px',
+              transition: 'all 0.2s ease',
+            }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                  <strong style={{ fontSize: '15px', color: '#e2e8f0' }}>{list.name}</strong>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    padding: '2px 10px',
+                    borderRadius: '10px',
+                    background: list.is_activated ? '#166534' : '#1e293b',
+                    color: list.is_activated ? '#4ade80' : '#64748b',
+                    border: `1px solid ${list.is_activated ? '#22c55e44' : '#334155'}`,
+                  }}>
+                    {list.is_activated ? 'ATIVADO' : 'DESATIVADO'}
+                  </span>
+                </div>
+                <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#94a3b8' }}>{list.description}</p>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>{list.domain_count.toLocaleString()} domínios</span>
+              </div>
+              <button
+                onClick={() => onToggle(list)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#ffffff',
+                  background: list.is_activated ? '#dc2626' : '#16a34a',
+                  transition: 'all 0.15s ease',
+                  minWidth: '130px',
+                  justifyContent: 'center',
+                }}
+              >
+                {list.is_activated ? (
+                  <><ToggleRight size={20} /> Desativar</>
+                ) : (
+                  <><ToggleLeft size={20} /> Ativar</>
+                )}
+              </button>
+            </div>
+          ))}
+          {blockLists.length === 0 && (
+            <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Nenhuma lista disponível. Execute o comando seed no servidor.</p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

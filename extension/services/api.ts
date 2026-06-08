@@ -216,6 +216,73 @@ export async function addUrlRule(url_pattern: string, rule_type: 'whitelist' | '
   return localRule;
 }
 
+// Active Block Domains Cache
+let blockDomainsCache: Set<string> | null = null;
+let blockDomainsCacheTime = 0;
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutos
+
+export async function getActiveBlockDomains(): Promise<Set<string>> {
+  const now = Date.now();
+  if (blockDomainsCache && (now - blockDomainsCacheTime) < CACHE_TTL) {
+    return blockDomainsCache;
+  }
+
+  const tokens = await getTokens();
+  if (!tokens) {
+    return new Set();
+  }
+
+  try {
+    const response = await request<{ domains: string[] }>('/accounts/active-block-domains/');
+    blockDomainsCache = new Set(response.domains.map(d => d.toLowerCase()));
+    blockDomainsCacheTime = now;
+    return blockDomainsCache;
+  } catch (error) {
+    console.error('Error fetching block domains:', error);
+    return blockDomainsCache || new Set();
+  }
+}
+
+export function clearBlockDomainsCache(): void {
+  blockDomainsCache = null;
+  blockDomainsCacheTime = 0;
+}
+
+export interface BlockList {
+  id: number;
+  name: string;
+  category: string;
+  description: string;
+  source_url: string;
+  domain_count: number;
+  is_activated: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getBlockLists(): Promise<BlockList[]> {
+  const tokens = await getTokens();
+  if (!tokens) return [];
+  try {
+    return await request<BlockList[]>('/accounts/block-lists/');
+  } catch (error) {
+    console.error('Error fetching block lists:', error);
+    return [];
+  }
+}
+
+export async function activateBlockList(blockListId: number): Promise<unknown> {
+  const result = await request(`/accounts/block-lists/${blockListId}/activate/`, { method: 'POST' });
+  clearBlockDomainsCache();
+  return result;
+}
+
+export async function deactivateBlockList(blockListId: number): Promise<unknown> {
+  const result = await request(`/accounts/block-lists/${blockListId}/deactivate/`, { method: 'POST' });
+  clearBlockDomainsCache();
+  return result;
+}
+
 export async function deleteUrlRule(rule: UrlRule): Promise<void> {
   if (rule.source === 'family') return;
 

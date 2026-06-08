@@ -1,92 +1,99 @@
-# [CORE] Verificar URL atual contra API de phishing — Issue #1
+# Zero Phishing
 
-## O que foi implementado
+Extensão de segurança contra phishing, malware e controle de acesso com listas de bloqueio padrão.
 
-Solução completa para a User Story:
-> "Como usuário, quero que a extensão verifique automaticamente a URL atual contra uma API de phishing/malware ao carregar qualquer página."
+## Arquitetura
 
----
+O projeto é composto por dois módulos principais:
 
-## Arquivos criados/modificados
+- **Backend** (`/backend`) - API REST em Django + Django REST Framework
+- **Extensão** (`/extension`) - Extensão de navegador em React + WXT
 
-| Arquivo | Função |
-|---|---|
-| `background.js` | Service worker principal — faz as chamadas às APIs |
-| `content.js` | Injeta banner de alerta vermelho na página |
-| `popup.html` / `popup.js` | UI do popup com status detalhado |
-| `manifest.json` | Permissões necessárias |
+## Funcionalidades
 
----
+- Detecção de phishing via Google Safe Browsing e VirusTotal
+- Listas de bloqueio padrão por categoria (adulto, malware, redes sociais, fake news, jogos de azar)
+- Regras personalizadas de whitelist/blacklist por usuário
+- Controle parental
+- Sincronização de regras na nuvem (com fallback offline)
+- Autenticação JWT com suporte a PIN
 
-## Fluxo de funcionamento
+## Setup Rápido
 
-```
-Usuário abre página
-      ↓
-chrome.tabs.onUpdated (status === "complete")
-      ↓
-background.js → checkUrl(url)
-      ├── checkGoogleSafeBrowsing(url)   → Google Safe Browsing API v4
-      └── checkVirusTotal(url)           → VirusTotal API v3
-      ↓
-Promise.allSettled (ambas em paralelo)
-      ↓
-Se ameaça detectada:
-  ├── chrome.notifications → notificação do sistema
-  ├── chrome.action.setBadgeText("!") → badge vermelho
-  └── sendMessage → content.js → banner vermelho na página
-      ↓
-Se seguro:
-  └── chrome.action.setBadgeText("✓") → badge verde
+### Backend
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# ou .venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py seed_block_lists --fetch  # Popula listas de bloqueio padrão
+python manage.py runserver
 ```
 
----
+### Extensão
 
-## APIs utilizadas
-
-### Google Safe Browsing v4
-- **Endpoint:** `POST /v4/threatMatches:find`
-- **Detecta:** MALWARE, SOCIAL_ENGINEERING, UNWANTED_SOFTWARE, POTENTIALLY_HARMFUL_APPLICATION
-- **Chave:** `GOOGLE_SAFE_BROWSING_API_KEY` no `background.js`
-- **Documentação:** https://developers.google.com/safe-browsing/v4
-
-### VirusTotal v3
-- **Endpoint:** `POST /api/v3/urls` + `GET /api/v3/urls/{id}`
-- **Detecta:** resultado agregado de 70+ engines antivírus
-- **Chave:** `VIRUSTOTAL_API_KEY` no `background.js`
-- **Documentação:** https://developers.virustotal.com/reference/url-object
-
----
-
-## Como configurar as chaves de API
-
-No arquivo `background.js`, substitua:
-
-```js
-const CONFIG = {
-  GOOGLE_SAFE_BROWSING_API_KEY: "YOUR_GOOGLE_API_KEY",   // ← sua chave aqui
-  VIRUSTOTAL_API_KEY: "YOUR_VIRUSTOTAL_API_KEY",          // ← sua chave aqui
-  ...
-};
+```bash
+cd extension
+npm install
+cp .env.example .env  # Configure as chaves de API
+npm run dev           # Chrome
+npm run dev:firefox   # Firefox
 ```
 
-- **Google:** https://console.cloud.google.com → ativar "Safe Browsing API"
-- **VirusTotal:** https://www.virustotal.com/gui/my-apikey (gratuito)
+## Listas de Bloqueio Padrão
 
----
+As listas são mantidas pelo projeto [StevenBlack/hosts](https://github.com/StevenBlack/hosts) e importadas via comando de seed:
 
-## Otimizações implementadas
+| Categoria | Descrição |
+|-----------|-----------|
+| `adult` | Conteúdo adulto/pornográfico |
+| `social_media` | Redes sociais (Facebook, Instagram, TikTok, etc.) |
+| `malware` | Sites com malware e spyware |
+| `fakenews` | Sites de notícias falsas |
+| `gambling` | Jogos de azar e apostas |
 
-- **Cache em memória** de 10 minutos — evita chamadas redundantes para a mesma URL
-- **Promise.allSettled** — ambas as APIs são consultadas em paralelo
-- **Fallback gracioso** — se uma API falhar, a outra ainda é considerada
-- **Filtro de URLs** — ignora `chrome://`, `about:`, `file:`, etc.
+Para popular as listas no banco de dados:
 
----
+```bash
+python manage.py seed_block_lists --fetch
+```
 
-## Como instalar para testar
+## API Endpoints
 
-1. Abra `chrome://extensions/`
-2. Ative **Modo do desenvolvedor**
-3. Clique em **Carregar sem compactação**
-4. Selecione a pasta `zero-phishing/`
+### Autenticação
+- `POST /api/accounts/register/` - Registro
+- `POST /api/accounts/login/` - Login com senha
+- `POST /api/accounts/pin-login/` - Login com PIN
+- `POST /api/accounts/refresh/` - Refresh token JWT
+
+### Listas de Bloqueio
+- `GET /api/accounts/block-lists/` - Lista todas as listas padrão
+- `POST /api/accounts/block-lists/<id>/activate/` - Ativa lista para o usuário
+- `POST /api/accounts/block-lists/<id>/deactivate/` - Desativa lista para o usuário
+- `GET /api/accounts/active-block-domains/` - Retorna domínios bloqueados ativos
+
+### Regras Personalizadas
+- `GET/POST /api/accounts/url-rules/` - Lista/cria regras
+- `GET/DELETE /api/accounts/url-rules/<id>/` - Detalhe/exclui regra
+
+### Controle Parental
+- `GET/POST /api/accounts/parental-control/` - Lista/cria vínculos
+- `GET/DELETE /api/accounts/parental-control/<id>/` - Detalhe/exclui vínculo
+
+## Documentação Detalhada
+
+- [Backend](/backend/README.md) - Setup e estrutura do backend
+- [Extensão](/extension/README.md) - Setup e estrutura da extensão
+
+## Padrão de Commits
+
+Seguimos [Conventional Commits](https://www.conventionalcommits.org/):
+- `feat:` nova funcionalidade
+- `fix:` correção de bug
+- `chore:` configuração, deps, scripts
+- `docs:` documentação
+
+Sempre referenciar a issue: `feat: implementação de feature (#1)`
