@@ -9,13 +9,39 @@ body {
 }
 
 .options-container {
-    max-width: 1000px;
+    max-width: 1120px;
     margin: 0 auto;
     background: #1e293b;
     padding: 40px;
     border-radius: 16px;
     border: 1px solid #334155;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+}
+
+.tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 12px;
+}
+
+.tabs button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    color: #cbd5e1;
+    border: 1px solid #334155;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.tabs .tab-active {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: white;
 }
 
 header {
@@ -56,6 +82,11 @@ h2 {
     margin-bottom: 20px;
 }
 
+.rule-grid {
+    display: flex;
+    gap: 30px;
+}
+
 .rule-input {
     flex: 1;
     padding: 12px 16px;
@@ -84,6 +115,13 @@ h2 {
 
 .btn-primary:hover {
     background: #2563eb;
+}
+
+.btn-warning,
+.btn-warning:hover,
+.btn-warning:disabled {
+    background: #f59e0b;
+    color: #1f2937;
 }
 
 .btn-danger {
@@ -123,6 +161,175 @@ h2 {
     color: #e2e8f0;
 }
 
+.rule-source {
+    margin-left: 8px;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.family-section {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+}
+
+.family-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.family-block {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 18px;
+}
+
+.family-block h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    font-size: 16px;
+    color: #e2e8f0;
+}
+
+.family-form {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.family-form .btn-primary,
+.member-actions .btn-secondary,
+.member-actions .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.compact-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.compact-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 14px;
+    background: #111827;
+    border: 1px solid #334155;
+    border-radius: 8px;
+}
+
+.compact-list li > span:first-child {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.secondary-text {
+    color: #94a3b8;
+    font-size: 13px;
+}
+
+.username-inline {
+    margin-left: 8px;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.member-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.role-pill {
+    display: inline-flex;
+    margin-top: 8px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #1d4ed8;
+    color: #dbeafe;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.btn-secondary {
+    background: #334155;
+    color: #f8fafc;
+    border: 1px solid #475569;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btn-secondary:hover {
+    background: #475569;
+}
+
+.icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 1px solid #334155;
+    background: #1e293b;
+    color: #e2e8f0;
+    cursor: pointer;
+}
+
+.icon-button:hover {
+    background: #334155;
+}
+
+.muted-row {
+    opacity: 0.65;
+}
+
+.form-error {
+    color: #f87171;
+    margin: 0;
+}
+
+.form-warning {
+    color: #fbbf24;
+    margin: 10px 0 0;
+    font-weight: 600;
+}
+
+.form-success {
+    color: #34d399;
+    margin: 10px 0 0;
+    font-weight: 600;
+}
+
+.auth-card {
+    max-width: 400px;
+    margin: 40px auto;
+    padding: 30px;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    background: #0f172a;
+}
+
+.auth-card h2 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
 code {
     background: #334155;
     padding: 2px 6px;
@@ -130,4 +337,27 @@ code {
     font-family: monospace;
     font-size: 13px;
     color: #94a3b8;
+}
+
+@media (max-width: 800px) {
+    body {
+        padding: 20px 12px;
+    }
+
+    .options-container {
+        padding: 24px;
+    }
+
+    header,
+    .family-header,
+    .rule-grid,
+    .family-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .compact-list li {
+        align-items: flex-start;
+        flex-direction: column;
+    }
 }

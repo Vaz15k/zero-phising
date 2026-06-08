@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getSavedUser, login, pinLogin, register, updateProfile, logout, User, AuthState } from '../../services/auth';
 import { checkBreaches, Breach } from '../../services/breach';
 import { PopupPage } from '../../types';
-import { Shield, ShieldAlert, CheckCircle, XCircle, Trash2, Plus, LogOut, User as UserIcon, Settings, Loader2, ArrowLeft, Search } from 'lucide-react';
+import { Shield, CheckCircle, LogOut, User as UserIcon, Settings, Loader2, ArrowLeft, Search } from 'lucide-react';
 import './style.css';
 
 export default function App() {
