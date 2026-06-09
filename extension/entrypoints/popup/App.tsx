@@ -51,7 +51,7 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
     const width = Math.max(900, Math.floor(window.screen.availWidth * 0.6));
     const height = Math.max(700, Math.floor(window.screen.availHeight * 0.9));
     browser.windows.create({
-      url: browser.runtime.getURL('options/index.html') + '?popup=1',
+      url: browser.runtime.getURL('options.html') + '?popup=1',
       type: 'popup',
       width,
       height,
@@ -69,7 +69,7 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
           <p className="header-subtle">Nao logado · <button className="link-inline" onClick={() => onNavigate('login')}>Entrar</button></p>
         )}
       </div>
-<div className="header-menu">
+      <div className="header-menu">
         <button className="icon-btn" onClick={openOptions} title="Configurações (Opções)"><Settings size={18} /></button>
         {isAuthenticated && (
           <>
@@ -78,7 +78,7 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
             <button className="icon-btn" onClick={onLogout} title="Sair"><LogOut size={18} /></button>
           </>
         )}
-      </div> Stashed changes
+      </div>
     </header>
   );
 }

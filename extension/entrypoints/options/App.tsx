@@ -1,17 +1,21 @@
 import { useState, useEffect } from 'react';
-import { getUrlRules, addUrlRule, deleteUrlRule, getBlockLists, activateBlockList, deactivateBlockList, BlockList } from '../../services/api';
+import { getUrlRules, addUrlRule, deleteUrlRule, getBlockLists, activateBlockList, deactivateBlockList, BlockList, getBlockedHistory } from '../../services/api';
 import type { UrlRule } from '../../services/storage';
+import type { BlockedAccess } from '../../types';
 import { getSavedUser, login, register, logout, AuthState } from '../../services/auth';
-import { Shield, ShieldAlert, CheckCircle, Trash2, Plus, LogOut, User as UserIcon, Globe, List, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Shield, ShieldAlert, CheckCircle, Trash2, Plus, LogOut, User as UserIcon, Globe, List, ToggleLeft, ToggleRight, History } from 'lucide-react';
 
 export default function App() {
   const [rules, setRules] = useState<UrlRule[]>([]);
   const [auth, setAuth] = useState<AuthState>({ user: null, isAuthenticated: false });
   const [newWhitelist, setNewWhitelist] = useState('');
   const [newBlacklist, setNewBlacklist] = useState('');
-  const [tab, setTab] = useState<'rules' | 'login' | 'register' | 'blocklists'>('rules');
+  const [tab, setTab] = useState<'rules' | 'login' | 'register' | 'blocklists' | 'history'>('rules');
   const [blockLists, setBlockLists] = useState<BlockList[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
+  const [historyData, setHistoryData] = useState<BlockedAccess[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<'ALL' | 'USER' | 'GROUP'>('ALL');
 
   useEffect(() => {
     loadData();
@@ -57,6 +61,18 @@ export default function App() {
     await loadData();
   }
 
+  async function loadHistory(source: 'ALL' | 'USER' | 'GROUP' = 'ALL') {
+    setLoadingHistory(true);
+    try {
+      const data = await getBlockedHistory(source === 'ALL' ? undefined : source);
+      setHistoryData(data);
+    } catch (e) {
+      console.error("Erro ao buscar histórico:", e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }
+
   const whitelist = rules.filter(r => r.rule_type === 'whitelist');
   const blacklist = rules.filter(r => r.rule_type === 'blacklist');
 
@@ -74,6 +90,9 @@ export default function App() {
               <span>{auth.user?.first_name || auth.user?.username}</span>
             </div>
             {tab !== 'blocklists' && <button className="btn-primary" style={{ background: '#8b5cf6' }} onClick={() => { setTab('blocklists'); loadBlockLists(); }}><List size={16} style={{ marginRight: '4px' }} />Listas Padrão</button>}
+            
+            {tab !== 'history' && <button className="btn-primary" style={{ background: '#f59e0b' }} onClick={() => { setTab('history'); setHistoryFilter('ALL'); loadHistory('ALL'); }}><History size={16} style={{ marginRight: '4px' }} />Histórico</button>}
+            
             {tab !== 'rules' && <button className="btn-primary" style={{ background: '#cbd5e1', color: '#1e293b' }} onClick={() => setTab('rules')}>Regras</button>}
             <button className="btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={async () => { await logout(); setTab('rules'); await loadData(); }}>
               <LogOut size={16} /> Sair
@@ -94,6 +113,60 @@ export default function App() {
       
       {tab === 'register' && !auth.isAuthenticated && (
         <RegisterForm onRegister={async () => { await loadData(); setTab('rules'); }} onSwitch={() => setTab('login')} />
+      )}
+
+      {tab === 'history' && auth.isAuthenticated && (
+        <div>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b', marginBottom: '10px' }}>
+            <History size={24} color="#f59e0b" /> Histórico de Bloqueios
+          </h2>
+          <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '20px' }}>
+            Apenas para administradores: visualize e filtre as tentativas de acesso bloqueadas.
+          </p>
+
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <button className="btn-primary" style={{ background: historyFilter === 'ALL' ? '#3b82f6' : '#334155' }} onClick={() => { setHistoryFilter('ALL'); loadHistory('ALL'); }}>Todos</button>
+            <button className="btn-primary" style={{ background: historyFilter === 'USER' ? '#3b82f6' : '#334155' }} onClick={() => { setHistoryFilter('USER'); loadHistory('USER'); }}>Por Usuário</button>
+            <button className="btn-primary" style={{ background: historyFilter === 'GROUP' ? '#3b82f6' : '#334155' }} onClick={() => { setHistoryFilter('GROUP'); loadHistory('GROUP'); }}>Por Grupo</button>
+          </div>
+
+          {loadingHistory ? (
+            <p style={{ color: '#94a3b8' }}>Carregando histórico...</p>
+          ) : (
+            <div style={{ background: '#0f172a', borderRadius: '10px', border: '1px solid #334155', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#e2e8f0', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ background: '#1e293b', borderBottom: '1px solid #334155' }}>
+                    <th style={{ padding: '12px 16px' }}>Data/Hora</th>
+                    <th style={{ padding: '12px 16px' }}>URL Bloqueada</th>
+                    <th style={{ padding: '12px 16px' }}>Usuário / Grupo</th>
+                    <th style={{ padding: '12px 16px' }}>Origem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyData.length === 0 ? (
+                    <tr><td colSpan={4} style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>Nenhum bloqueio registrado no histórico.</td></tr>
+                  ) : historyData.map((item) => (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #1e293b' }}>
+                      <td style={{ padding: '12px 16px', color: '#94a3b8' }}>{new Date(item.timestamp).toLocaleString('pt-BR')}</td>
+                      <td style={{ padding: '12px 16px', wordBreak: 'break-all', maxWidth: '350px' }}><span style={{ color: '#ef4444' }}>{item.url}</span></td>
+                      <td style={{ padding: '12px 16px' }}>{item.block_source === 'USER' ? (item.username || '—') : (item.group_name || '—')}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{
+                          padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold',
+                          background: item.block_source === 'USER' ? '#1e3a8a' : '#4c1d95',
+                          color: item.block_source === 'USER' ? '#93c5fd' : '#c4b5fd'
+                        }}>
+                          {item.block_source === 'USER' ? 'USUÁRIO' : 'GRUPO'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
 
       {tab === 'blocklists' && auth.isAuthenticated && (
@@ -187,7 +260,6 @@ export default function App() {
           </div>
 
           <div style={{ display: 'flex', gap: '30px' }}>
-            {/* Whitelist Section */}
             <div style={{ flex: 1 }}>
               <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#16a34a' }}>
                 <CheckCircle size={24} /> Permissões (Whitelist)
@@ -223,7 +295,6 @@ export default function App() {
               </ul>
             </div>
 
-            {/* Blacklist Section */}
             <div style={{ flex: 1 }}>
               <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>
                 <ShieldAlert size={24} /> Bloqueios (Blacklist)
