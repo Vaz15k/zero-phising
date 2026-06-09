@@ -211,7 +211,7 @@ export default function App() {
             <History size={24} color="#f59e0b" /> Histórico de Bloqueios
           </h2>
           <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '20px' }}>
-            Apenas para administradores: visualize e filtre as tentativas de acesso bloqueadas.
+            Visualize as tentativas de acesso bloqueadas associadas à sua conta.
           </p>
 
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>

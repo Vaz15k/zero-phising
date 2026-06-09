@@ -266,12 +266,15 @@ class ActiveBlockDomainsView(APIView):
 
 class BlockedAccessHistoryView(generics.ListAPIView):
     serializer_class = BlockedAccessSerializer
-    permission_classes = (permissions.IsAdminUser,)
+    permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
-        queryset = BlockedAccess.objects.all()
-        source = self.request.query_params.get('source', None)
+        if self.request.user.is_staff:
+            queryset = BlockedAccess.objects.all()
+        else:
+            queryset = BlockedAccess.objects.filter(user=self.request.user)
 
+        source = self.request.query_params.get('source', None)
         if source:
             queryset = queryset.filter(block_source__iexact=source)
 
