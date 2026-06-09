@@ -406,7 +406,11 @@ class FamilyInvitationActionView(APIView):
         if action == 'accept':
             if get_active_family(request.user):
                 return Response({'error': 'Você já participa de uma família.'}, status=status.HTTP_400_BAD_REQUEST)
-            FamilyMember.objects.create(family=invitation.family, user=request.user, role='member')
+            FamilyMember.objects.update_or_create(
+                family=invitation.family,
+                user=request.user,
+                defaults={'role': 'member', 'is_active': True},
+            )
             invitation.status = 'accepted'
             message = f'{request.user.username} aceitou o convite para a família {invitation.family.name}.'
         else:
