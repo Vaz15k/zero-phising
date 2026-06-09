@@ -172,7 +172,7 @@ class FamilyMemberSerializer(serializers.ModelSerializer):
 
 
 class FamilySerializer(serializers.ModelSerializer):
-    members = FamilyMemberSerializer(many=True, read_only=True)
+    members = serializers.SerializerMethodField()
     rules = FamilyURLRuleSerializer(many=True, read_only=True)
     current_user_role = serializers.SerializerMethodField()
 
@@ -180,6 +180,10 @@ class FamilySerializer(serializers.ModelSerializer):
         model = Family
         fields = ('id', 'name', 'owner', 'created_at', 'current_user_role', 'members', 'rules')
         read_only_fields = ('id', 'owner', 'created_at', 'current_user_role', 'members', 'rules')
+
+    def get_members(self, obj):
+        active_members = obj.members.filter(is_active=True)
+        return FamilyMemberSerializer(active_members, many=True).data
 
     def get_current_user_role(self, obj):
         request = self.context.get('request')
