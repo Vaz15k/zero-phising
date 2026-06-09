@@ -355,12 +355,15 @@ export async function reportBlockedAccess(url: string, blockSource: 'USER' | 'GR
   }
 }
 
-// Busca o histórico de bloqueios (apenas para Admin)
-export async function getBlockedHistory(sourceFilter?: 'USER' | 'GROUP'): Promise<BlockedAccess[]> {
+// Busca o histórico de bloqueios
+export async function getBlockedHistory(options?: { family?: boolean; source?: 'USER' | 'GROUP' }): Promise<BlockedAccess[]> {
+  const params = new URLSearchParams();
+  if (options?.family) params.set('family', 'true');
+  if (options?.source) params.set('source', options.source);
+
   let endpoint = '/accounts/blocked-history/';
-  if (sourceFilter && sourceFilter !== 'ALL' as never) {
-    endpoint += `?source=${sourceFilter}`;
-  }
+  const qs = params.toString();
+  if (qs) endpoint += `?${qs}`;
 
   try {
     return await request<BlockedAccess[]>(endpoint);

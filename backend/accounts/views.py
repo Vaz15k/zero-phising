@@ -269,10 +269,17 @@ class BlockedAccessHistoryView(generics.ListAPIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
-        if self.request.user.is_staff:
-            queryset = BlockedAccess.objects.all()
-        else:
-            queryset = BlockedAccess.objects.filter(user=self.request.user)
+        queryset = BlockedAccess.objects.filter(user=self.request.user)
+
+        include_family = self.request.query_params.get('family', '').lower() == 'true'
+        if include_family:
+            membership = get_active_membership(self.request.user)
+            if membership and membership.role == 'admin':
+                family_user_ids = FamilyMember.objects.filter(
+                    family=membership.family,
+                    is_active=True,
+                ).values_list('user_id', flat=True)
+                queryset = BlockedAccess.objects.filter(user__in=family_user_ids)
 
         source = self.request.query_params.get('source', None)
         if source:

@@ -75,7 +75,7 @@ export default function App() {
   const [loadingLists, setLoadingLists] = useState(false);
   const [historyData, setHistoryData] = useState<BlockedAccess[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [historyFilter, setHistoryFilter] = useState<'ALL' | 'USER' | 'GROUP'>('ALL');
+  const [historyFilter, setHistoryFilter] = useState<'mine' | 'family'>('mine');
 
   useEffect(() => {
     loadData();
@@ -138,10 +138,10 @@ export default function App() {
     await loadData();
   }
 
-  async function loadHistory(source: 'ALL' | 'USER' | 'GROUP' = 'ALL') {
+  async function loadHistory(view: 'mine' | 'family' = 'mine') {
     setLoadingHistory(true);
     try {
-      const data = await getBlockedHistory(source === 'ALL' ? undefined : source);
+      const data = await getBlockedHistory({ family: view === 'family' });
       setHistoryData(data);
     } catch (e) {
       console.error("Erro ao buscar histórico:", e);
@@ -191,7 +191,7 @@ export default function App() {
           <button className={tab === 'blocklists' ? 'tab-active' : ''} onClick={() => { setTab('blocklists'); loadBlockLists(); }}>
             <List size={16} /> Listas Padrão
           </button>
-          <button className={tab === 'history' ? 'tab-active' : ''} onClick={() => { setTab('history'); setHistoryFilter('ALL'); loadHistory('ALL'); }}>
+          <button className={tab === 'history' ? 'tab-active' : ''} onClick={() => { setTab('history'); setHistoryFilter('mine'); loadHistory('mine'); }}>
             <History size={16} /> Histórico
           </button>
         </div>
@@ -215,9 +215,10 @@ export default function App() {
           </p>
 
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-            <button className="btn-primary" style={{ background: historyFilter === 'ALL' ? '#3b82f6' : '#334155' }} onClick={() => { setHistoryFilter('ALL'); loadHistory('ALL'); }}>Todos</button>
-            <button className="btn-primary" style={{ background: historyFilter === 'USER' ? '#3b82f6' : '#334155' }} onClick={() => { setHistoryFilter('USER'); loadHistory('USER'); }}>Por Usuário</button>
-            <button className="btn-primary" style={{ background: historyFilter === 'GROUP' ? '#3b82f6' : '#334155' }} onClick={() => { setHistoryFilter('GROUP'); loadHistory('GROUP'); }}>Por Grupo</button>
+            <button className="btn-primary" style={{ background: historyFilter === 'mine' ? '#3b82f6' : '#334155' }} onClick={() => { setHistoryFilter('mine'); loadHistory('mine'); }}>Meus</button>
+            {family?.current_user_role === 'admin' && (
+              <button className="btn-primary" style={{ background: historyFilter === 'family' ? '#3b82f6' : '#334155' }} onClick={() => { setHistoryFilter('family'); loadHistory('family'); }}>Família</button>
+            )}
           </div>
 
           {loadingHistory ? (
