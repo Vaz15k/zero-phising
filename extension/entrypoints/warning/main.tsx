@@ -7,8 +7,10 @@ const WarningPage = () => {
   const params = new URLSearchParams(window.location.search);
   const blockedUrl = params.get('url') || 'página protegida';
   const reason = params.get('reason') || 'phishing';
+  const source = params.get('source');
 
   const isCustomBlacklist = reason === 'blacklist';
+  const isFamilyBlacklist = isCustomBlacklist && source === 'family';
   const isDefaultBlocklist = reason === 'blocklist';
   const isBlocked = isCustomBlacklist || isDefaultBlocklist;
 
@@ -18,15 +20,17 @@ const WarningPage = () => {
 
   if (isCustomBlacklist) {
     badgeClass = 'custom-blacklist';
-    badgeText = '🚫 BLOQUEADO POR SUA LISTA PESSOAL';
-    description = 'Você adicionou este site manualmente à sua lista de bloqueios.';
+    badgeText = isFamilyBlacklist ? 'BLOQUEADO PELA LISTA FAMILIAR' : 'BLOQUEADO POR SUA LISTA PESSOAL';
+    description = isFamilyBlacklist
+      ? 'Este site foi bloqueado por uma regra compartilhada da sua família.'
+      : 'Você adicionou este site manualmente à sua lista de bloqueios.';
   } else if (isDefaultBlocklist) {
     badgeClass = 'default-blocklist';
-    badgeText = '🛡️ BLOQUEADO POR LISTA DE CATEGORIA';
+    badgeText = 'BLOQUEADO POR LISTA DE CATEGORIA';
     description = 'Este site foi bloqueado por uma lista de bloqueio padrão.';
   } else {
     badgeClass = 'phishing';
-    badgeText = '⚠️ DETECTADO COMO AMEAÇA DE PHISHING';
+    badgeText = 'DETECTADO COMO AMEAÇA DE PHISHING';
     description = 'Este site foi identificado como uma ameaça à sua segurança digital.';
   }
 

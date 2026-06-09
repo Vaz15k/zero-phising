@@ -126,8 +126,6 @@ class CustomURLRule(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.rule_type} - {self.url_pattern}"
-    
-    
 class BlockedAccess(models.Model):
     BLOCK_SOURCE_CHOICES = (
         ('USER', 'Usuário'),
@@ -136,25 +134,25 @@ class BlockedAccess(models.Model):
 
     url = models.URLField(max_length=2048, verbose_name="URL Bloqueada")
     timestamp = models.DateTimeField(auto_now_add=True, verbose_name="Data e Hora")
-    
+
     user = models.ForeignKey(
-        User, 
-        on_delete=models.CASCADE, 
-        null=True, 
-        blank=True, 
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='blocked_accesses'
     )
     group = models.ForeignKey(
-        Group, 
-        on_delete=models.CASCADE, 
-        null=True, 
-        blank=True, 
+        Group,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='blocked_accesses'
     )
-    
+
     block_source = models.CharField(
-        max_length=10, 
-        choices=BLOCK_SOURCE_CHOICES, 
+        max_length=10,
+        choices=BLOCK_SOURCE_CHOICES,
         default='USER',
         verbose_name="Origem do Bloqueio"
     )
@@ -165,4 +163,98 @@ class BlockedAccess(models.Model):
         verbose_name_plural = 'Acessos Bloqueados'
 
     def __str__(self):
-        return f"{self.url} - {self.timestamp.strftime('%d/%m/%Y %H:%M')}"    
+        return f"{self.url} - {self.timestamp.strftime('%d/%m/%Y %H:%M')}"
+
+
+class Family(models.Model):
+    name = models.CharField(max_length=120)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owned_families')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'accounts_familygroup'
+        verbose_name = 'família'
+        verbose_name_plural = 'famílias'
+
+    def __str__(self):
+        return self.name
+
+
+class FamilyMember(models.Model):
+    ROLE_CHOICES = (
+        ('admin', 'Administrador'),
+        ('member', 'Membro'),
+    )
+
+    family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name='members')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='family_memberships')
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='member')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'accounts_familymembership'
+        unique_together = ('family', 'user')
+        verbose_name = 'membro da família'
+        verbose_name_plural = 'membros da família'
+
+    def __str__(self):
+        return f'{self.family} - {self.user} ({self.role})'
+
+
+class FamilyInvitation(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pendente'),
+        ('accepted', 'Aceito'),
+        ('declined', 'Recusado'),
+        ('cancelled', 'Cancelado'),
+    )
+
+    family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name='invitations')
+    invited_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='family_invitations')
+    invited_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_family_invitations')
+    email = models.EmailField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'convite de família'
+        verbose_name_plural = 'convites de família'
+
+    def __str__(self):
+        return f'{self.family} -> {self.invited_user} ({self.status})'
+
+
+class FamilyNotification(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='family_notifications')
+    family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name='notifications', blank=True, null=True)
+    invitation = models.ForeignKey(FamilyInvitation, on_delete=models.CASCADE, related_name='notifications', blank=True, null=True)
+    message = models.CharField(max_length=255)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+        verbose_name = 'notificação de família'
+        verbose_name_plural = 'notificações de família'
+
+    def __str__(self):
+        return self.message
+
+
+class FamilyURLRule(models.Model):
+    RULE_CHOICES = CustomURLRule.RULE_CHOICES
+
+    family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name='rules')
+    url_pattern = models.CharField(max_length=255)
+    rule_type = models.CharField(max_length=10, choices=RULE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('family', 'url_pattern')
+        verbose_name = 'regra de URL da família'
+        verbose_name_plural = 'regras de URL da família'
+
+    def __str__(self):
+        return f'{self.family} - {self.rule_type} - {self.url_pattern}'

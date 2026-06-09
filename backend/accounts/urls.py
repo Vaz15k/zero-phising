@@ -57,4 +57,45 @@ urlpatterns = [
         views.ReportBlockView.as_view(),
         name='report-block',
     ),
+    path('family/', views.FamilyView.as_view(), name='family'),
+    path(
+        'family/invitations/',
+        views.FamilyInvitationListCreateView.as_view(),
+        name='family-invitations',
+    ),
+    path(
+        'family/invitations/<int:pk>/<str:action>/',
+        views.FamilyInvitationActionView.as_view(),
+        name='family-invitation-action',
+    ),
+    path(
+        'family/invitations/<int:pk>/cancel/',
+        views.FamilyInvitationCancelView.as_view(),
+        name='family-invitation-cancel',
+    ),
+    path(
+        'family/members/<int:pk>/',
+        views.FamilyMemberDetailView.as_view(),
+        name='family-member-detail',
+    ),
+    path(
+        'family/notifications/',
+        views.FamilyNotificationListView.as_view(),
+        name='family-notifications',
+    ),
+    path(
+        'family/notifications/<int:pk>/read/',
+        views.FamilyNotificationReadView.as_view(),
+        name='family-notification-read',
+    ),
+    path(
+        'family/rules/',
+        views.FamilyURLRuleListCreateView.as_view(),
+        name='family-rules',
+    ),
+    path(
+        'family/rules/<int:pk>/',
+        views.FamilyURLRuleDetailView.as_view(),
+        name='family-rule-detail',
+    ),
 ]

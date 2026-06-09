@@ -1,13 +1,30 @@
 from rest_framework import serializers
 
-from .models import User, ParentalControl, CustomURLRule, DefaultBlockList, UserBlockListActivation, BlockedAccess
+from .models import (
+    User,
+    ParentalControl,
+    CustomURLRule,
+    DefaultBlockList,
+    UserBlockListActivation,
+    BlockedAccess,
+    Family,
+    FamilyMember,
+    FamilyInvitation,
+    FamilyNotification,
+    FamilyURLRule,
+)
 
 
 class CustomURLRuleSerializer(serializers.ModelSerializer):
+    source = serializers.SerializerMethodField()
+
     class Meta:
         model = CustomURLRule
-        fields = ('id', 'url_pattern', 'rule_type', 'created_at')
+        fields = ('id', 'url_pattern', 'rule_type', 'created_at', 'source')
         read_only_fields = ('id', 'created_at')
+
+    def get_source(self, obj):
+        return 'personal'
 
     def validate_url_pattern(self, value):
         # Validação simples (pode ser aprimorada depois)
@@ -113,13 +130,100 @@ class BlockedAccessSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlockedAccess
         fields = (
-            'id', 
-            'url', 
-            'timestamp', 
-            'user', 
-            'username', 
-            'group', 
-            'group_name', 
+            'id',
+            'url',
+            'timestamp',
+            'user',
+            'username',
+            'group',
+            'group_name',
             'block_source'
         )
         read_only_fields = ('id', 'timestamp')
+
+
+class FamilyURLRuleSerializer(serializers.ModelSerializer):
+    source = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FamilyURLRule
+        fields = ('id', 'url_pattern', 'rule_type', 'created_at', 'source')
+        read_only_fields = ('id', 'created_at', 'source')
+
+    def validate_url_pattern(self, value):
+        if not value:
+            raise serializers.ValidationError("A URL não pode ser vazia.")
+        return value
+
+    def get_source(self, obj):
+        return 'family'
+
+
+class FamilyMemberSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.EmailField(source='user.email', read_only=True)
+    first_name = serializers.CharField(source='user.first_name', read_only=True)
+    last_name = serializers.CharField(source='user.last_name', read_only=True)
+
+    class Meta:
+        model = FamilyMember
+        fields = ('id', 'user', 'username', 'email', 'first_name', 'last_name', 'role', 'created_at', 'is_active')
+        read_only_fields = ('id', 'user', 'username', 'email', 'first_name', 'last_name', 'created_at', 'is_active')
+
+
+class FamilySerializer(serializers.ModelSerializer):
+    members = FamilyMemberSerializer(many=True, read_only=True)
+    rules = FamilyURLRuleSerializer(many=True, read_only=True)
+    current_user_role = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Family
+        fields = ('id', 'name', 'owner', 'created_at', 'current_user_role', 'members', 'rules')
+        read_only_fields = ('id', 'owner', 'created_at', 'current_user_role', 'members', 'rules')
+
+    def get_current_user_role(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return None
+        membership = obj.members.filter(user=request.user, is_active=True).first()
+        return membership.role if membership else None
+
+
+class FamilyInvitationSerializer(serializers.ModelSerializer):
+    family_name = serializers.CharField(source='family.name', read_only=True)
+    invited_user_username = serializers.CharField(source='invited_user.username', read_only=True)
+    invited_user_first_name = serializers.CharField(source='invited_user.first_name', read_only=True)
+    invited_user_last_name = serializers.CharField(source='invited_user.last_name', read_only=True)
+    invited_by_username = serializers.CharField(source='invited_by.username', read_only=True)
+    invited_by_first_name = serializers.CharField(source='invited_by.first_name', read_only=True)
+    invited_by_last_name = serializers.CharField(source='invited_by.last_name', read_only=True)
+
+    class Meta:
+        model = FamilyInvitation
+        fields = (
+            'id',
+            'family',
+            'family_name',
+            'invited_user',
+            'invited_user_username',
+            'invited_user_first_name',
+            'invited_user_last_name',
+            'invited_by',
+            'invited_by_username',
+            'invited_by_first_name',
+            'invited_by_last_name',
+            'email',
+            'status',
+            'created_at',
+            'responded_at',
+        )
+        read_only_fields = fields
+
+
+class FamilyNotificationSerializer(serializers.ModelSerializer):
+    family_name = serializers.CharField(source='family.name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = FamilyNotification
+        fields = ('id', 'family', 'family_name', 'invitation', 'message', 'is_read', 'created_at')
+        read_only_fields = fields

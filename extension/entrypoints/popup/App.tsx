@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getSavedUser, login, pinLogin, register, updateProfile, logout, User, AuthState } from '../../services/auth';
 import { checkBreaches, Breach } from '../../services/breach';
 import { PopupPage } from '../../types';
-import { Shield, CheckCircle, LogOut, User as UserIcon, Settings, Loader2, ArrowLeft, Search } from 'lucide-react';
+import { Shield, CheckCircle, LogOut, User as UserIcon, Settings, Loader2, ArrowLeft, Search, Users, ExternalLink } from 'lucide-react';
 import './style.css';
 
 export default function App() {
@@ -36,6 +36,7 @@ export default function App() {
       {page === 'login' && <LoginPage onLogin={(s) => { setAuth(s); setPage('main'); }} onRegister={() => setPage('register')} onPinLogin={(s) => { setAuth(s); setPage('main'); }} onSkip={() => setPage('main')} />}
       {page === 'register' && <RegisterPage onRegister={(s) => { setAuth(s); setPage('main'); }} onBack={() => setPage('login')} />}
       {page === 'profile' && <ProfilePage user={auth.user!} onUpdate={(u) => setAuth({ user: u, isAuthenticated: true })} onBack={() => setPage('main')} />}
+      {page === 'settings' && <SettingsPage isAuthenticated={auth.isAuthenticated} user={auth.user} onNavigate={setPage} onBack={() => setPage('main')} />}
       
       {page === 'breaches' && <BreachCheckerPage onBack={() => setPage('main')} />}
 
@@ -47,16 +48,6 @@ export default function App() {
 function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { user: User | null; isAuthenticated: boolean; onLogout: () => void; onNavigate: (p: PopupPage) => void; currentPage: PopupPage }) {
   if (currentPage !== 'main') return null;
 
-  const openOptions = () => {
-    const width = Math.max(900, Math.floor(window.screen.availWidth * 0.6));
-    const height = Math.max(700, Math.floor(window.screen.availHeight * 0.9));
-    browser.windows.create({
-      url: browser.runtime.getURL('options.html') + '?popup=1',
-      type: 'popup',
-      width,
-      height,
-    });
-  };
 
   return (
     <header>
@@ -70,7 +61,7 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
         )}
       </div>
       <div className="header-menu">
-        <button className="icon-btn" onClick={openOptions} title="Configurações (Opções)"><Settings size={18} /></button>
+        <button className="icon-btn" onClick={() => onNavigate('settings')} title="Configurações"><Settings size={18} /></button>
         {isAuthenticated && (
           <>
             <button className="icon-btn" onClick={() => onNavigate('breaches')} title="Verificar Vazamentos">🔍</button>
@@ -80,6 +71,65 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
         )}
       </div>
     </header>
+  );
+}
+
+function SettingsPage({
+  isAuthenticated,
+  user,
+  onNavigate,
+  onBack,
+}: {
+  isAuthenticated: boolean;
+  user: User | null;
+  onNavigate: (p: PopupPage) => void;
+  onBack: () => void;
+}) {
+  const openFamilySettings = () => {
+    const width = Math.min(window.screen.availWidth, Math.max(360, Math.floor(window.screen.availWidth * 0.8)));
+    const height = Math.min(window.screen.availHeight, Math.max(520, Math.floor(window.screen.availHeight * 0.9)));
+    browser.windows.create({
+      url: browser.runtime.getURL('/options.html') + '?tab=family&popup=1',
+      type: 'popup',
+      width,
+      height,
+    });
+  };
+
+  return (
+    <div className="container">
+      <div className="profile-top-bar">
+        <button className="icon-btn" onClick={onBack} title="Voltar"><ArrowLeft size={18} /></button>
+      </div>
+      <div className="settings-card">
+        <div className="settings-heading">
+          <Settings size={28} color="#60a5fa" />
+          <div>
+            <h2>Configurações</h2>
+            <p>{isAuthenticated ? `Conectado como ${user?.username}` : 'Entre para sincronizar suas regras'}</p>
+          </div>
+        </div>
+
+        <div className="settings-actions">
+          <button className="settings-action settings-action-primary" onClick={openFamilySettings}>
+            <Users size={18} />
+            <span>Painel completo</span>
+            <ExternalLink size={16} />
+          </button>
+          {isAuthenticated ? (
+            <button className="settings-action" onClick={() => onNavigate('profile')}>
+              <UserIcon size={18} />
+              <span>Perfil</span>
+            </button>
+          ) : (
+            <button className="settings-action" onClick={() => onNavigate('login')}>
+              <UserIcon size={18} />
+              <span>Entrar</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

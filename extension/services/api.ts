@@ -1,4 +1,4 @@
-import { getLocalRules, addLocalRule, deleteLocalRule as deleteFromStorage, deleteLocalRuleByPattern, UrlRule } from './storage';
+import { getLocalRules, addLocalRule, deleteLocalRule as deleteFromStorage, deleteLocalRuleByPattern } from './storage';
 import type { BlockedAccess } from '../types';
 
 const API_BASE = import.meta.env.WXT_API_URL || 'http://127.0.0.1:8000';
@@ -7,6 +7,64 @@ interface RequestOptions {
   method?: string;
   body?: unknown;
   auth?: boolean;
+}
+
+export interface UrlRule {
+  id: string | number;
+  url_pattern: string;
+  rule_type: 'whitelist' | 'blacklist';
+  created_at?: string;
+  source?: 'personal' | 'family' | 'local';
+}
+
+export interface FamilyMember {
+  id: number;
+  user: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: 'admin' | 'member';
+  created_at: string;
+  is_active: boolean;
+}
+
+export interface Family {
+  id: number;
+  name: string;
+  owner: number;
+  created_at: string;
+  current_user_role: 'admin' | 'member' | null;
+  members: FamilyMember[];
+  rules: UrlRule[];
+}
+
+export interface FamilyInvitation {
+  id: number;
+  family: number;
+  family_name: string;
+  invited_user: number;
+  invited_user_username: string;
+  invited_user_first_name: string;
+  invited_user_last_name: string;
+  invited_by: number;
+  invited_by_username: string;
+  invited_by_first_name: string;
+  invited_by_last_name: string;
+  email: string;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+  created_at: string;
+  responded_at: string | null;
+}
+
+export interface FamilyNotification {
+  id: number;
+  family: number | null;
+  family_name: string | null;
+  invitation: number | null;
+  message: string;
+  is_read: boolean;
+  created_at: string;
 }
 
 async function getTokens(): Promise<{ access: string; refresh: string } | null> {
@@ -66,10 +124,50 @@ export async function request<T = unknown>(endpoint: string, options: RequestOpt
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error((errorData as { error?: string }).error || `Erro ${response.status}`);
+    throw new Error(extractErrorMessage(errorData, response.status, endpoint));
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;
+}
+
+function extractErrorMessage(errorData: unknown, statusCode: number, endpoint = ''): string {
+  const isFamilyEndpoint = endpoint.startsWith('/accounts/family/');
+
+  if (!errorData || typeof errorData !== 'object') {
+    if (isFamilyEndpoint && statusCode === 404) {
+      return 'Não foi possível acessar a funcionalidade de família no servidor. Atualize o backend e tente novamente.';
+    }
+    return `Erro ${statusCode}`;
+  }
+
+  const data = errorData as Record<string, unknown>;
+  if (typeof data.error === 'string') return data.error;
+  if (typeof data.detail === 'string') {
+    if (isFamilyEndpoint && statusCode === 404 && data.detail.toLowerCase() === 'not found.') {
+      return 'Não foi possível acessar a funcionalidade de família no servidor. Atualize o backend e tente novamente.';
+    }
+    return data.detail;
+  }
+
+  const messages = Object.entries(data).flatMap(([field, value]) => {
+    if (Array.isArray(value)) {
+      return value.map(item => `${field}: ${String(item)}`);
+    }
+    if (typeof value === 'string') {
+      return [`${field}: ${value}`];
+    }
+    return [];
+  });
+
+  if (isFamilyEndpoint && statusCode === 404) {
+    return 'Não foi possível acessar a funcionalidade de família no servidor. Atualize o backend e tente novamente.';
+  }
+
+  return messages[0] || `Erro ${statusCode}`;
 }
 
 async function refreshAccessToken(refresh: string): Promise<string | null> {
@@ -93,7 +191,7 @@ async function refreshAccessToken(refresh: string): Promise<string | null> {
 // Custom URL Rules
 export async function getUrlRules(): Promise<UrlRule[]> {
   const tokens = await getTokens();
-  const localRules = await getLocalRules();
+  const localRules = (await getLocalRules()).map(rule => ({ ...rule, source: rule.source || 'local' as const }));
   
   if (!tokens) {
     return localRules;
@@ -104,7 +202,11 @@ export async function getUrlRules(): Promise<UrlRule[]> {
     
     // Deduplicar: preferir as regras do servidor (que têm IDs reais para deleção no backend)
     // Mas manter as locais que ainda não foram sincronizadas
-    const serverPatterns = new Set(serverRules.map(r => `${r.url_pattern}|${r.rule_type}`));
+    const serverPatterns = new Set(
+      serverRules
+        .filter(r => (r.source || 'personal') === 'personal')
+        .map(r => `${r.url_pattern}|${r.rule_type}`)
+    );
     const uniqueLocal = localRules.filter(r => !serverPatterns.has(`${r.url_pattern}|${r.rule_type}`));
     
     return [...uniqueLocal, ...serverRules];
@@ -201,7 +303,10 @@ export async function deactivateBlockList(blockListId: number): Promise<unknown>
   clearBlockDomainsCache();
   return result;
 }
+
 export async function deleteUrlRule(rule: UrlRule): Promise<void> {
+  if (rule.source === 'family') return;
+
   const id = rule.id;
   
   // 1. Sempre tenta remover localmente
@@ -253,14 +358,88 @@ export async function reportBlockedAccess(url: string, blockSource: 'USER' | 'GR
 // Busca o histórico de bloqueios (apenas para Admin)
 export async function getBlockedHistory(sourceFilter?: 'USER' | 'GROUP'): Promise<BlockedAccess[]> {
   let endpoint = '/accounts/blocked-history/';
-  if (sourceFilter && sourceFilter !== 'ALL' as any) {
+  if (sourceFilter && sourceFilter !== 'ALL' as never) {
     endpoint += `?source=${sourceFilter}`;
   }
-  
+
   try {
     return await request<BlockedAccess[]>(endpoint);
   } catch (error) {
     console.error('Erro ao buscar histórico de bloqueios:', error);
     return [];
   }
+}
+
+export async function getFamily(): Promise<Family | null> {
+  const data = await request<{ family: Family | null }>('/accounts/family/');
+  return data.family;
+}
+
+export async function createFamily(name: string): Promise<Family> {
+  const data = await request<{ family: Family }>('/accounts/family/', {
+    method: 'POST',
+    body: { name },
+  });
+  return data.family;
+}
+
+export async function getFamilyInvitations(): Promise<{ sent: FamilyInvitation[]; received: FamilyInvitation[] }> {
+  return request('/accounts/family/invitations/');
+}
+
+export async function inviteFamilyMember(identifier: string): Promise<FamilyInvitation> {
+  return request('/accounts/family/invitations/', {
+    method: 'POST',
+    body: { identifier },
+  });
+}
+
+export async function respondFamilyInvitation(id: number, action: 'accept' | 'decline'): Promise<FamilyInvitation> {
+  return request(`/accounts/family/invitations/${id}/${action}/`, {
+    method: 'POST',
+    body: {},
+  });
+}
+
+export async function cancelFamilyInvitation(id: number): Promise<void> {
+  await request(`/accounts/family/invitations/${id}/cancel/`, {
+    method: 'DELETE',
+  });
+}
+
+export async function updateFamilyMemberRole(memberId: number, role: 'admin' | 'member'): Promise<FamilyMember> {
+  return request(`/accounts/family/members/${memberId}/`, {
+    method: 'PATCH',
+    body: { role },
+  });
+}
+
+export async function removeFamilyMember(memberId: number): Promise<void> {
+  await request(`/accounts/family/members/${memberId}/`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getFamilyNotifications(): Promise<FamilyNotification[]> {
+  return request('/accounts/family/notifications/');
+}
+
+export async function markFamilyNotificationRead(id: number): Promise<FamilyNotification> {
+  return request(`/accounts/family/notifications/${id}/read/`, {
+    method: 'POST',
+    body: {},
+  });
+}
+
+export async function addFamilyUrlRule(url_pattern: string, rule_type: 'whitelist' | 'blacklist'): Promise<UrlRule> {
+  return request('/accounts/family/rules/', {
+    method: 'POST',
+    body: { url_pattern, rule_type },
+  });
+}
+
+export async function deleteFamilyUrlRule(id: number): Promise<void> {
+  await request(`/accounts/family/rules/${id}/`, {
+    method: 'DELETE',
+  });
 }
