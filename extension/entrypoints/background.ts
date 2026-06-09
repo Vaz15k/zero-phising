@@ -14,7 +14,14 @@ export default defineBackground(() => {
 
       // Bloqueio: Somente se NÃO for seguro E NÃO for por causa da Whitelist
       if (!result.safe && result.reason !== 'whitelist') {
-        const warningUrl = browser.runtime.getURL(`/warning.html?url=${encodeURIComponent(tab.url)}&reason=${result.reason || 'phishing'}`);
+        const params = new URLSearchParams({
+          url: tab.url,
+          reason: result.reason || 'phishing',
+        });
+        if (result.source) {
+          params.set('source', result.source);
+        }
+        const warningUrl = browser.runtime.getURL(`/warning.html?${params.toString()}`);
         
         console.log(`[Zero Phishing] REDIRECIONANDO PARA AVISO: ${tab.url}`);
         browser.tabs.update(tabId, { url: warningUrl });

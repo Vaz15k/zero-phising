@@ -123,18 +123,34 @@ export async function request<T = unknown>(endpoint: string, options: RequestOpt
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(extractErrorMessage(errorData, response.status));
+    throw new Error(extractErrorMessage(errorData, response.status, endpoint));
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;
 }
 
-function extractErrorMessage(errorData: unknown, statusCode: number): string {
-  if (!errorData || typeof errorData !== 'object') return `Erro ${statusCode}`;
+function extractErrorMessage(errorData: unknown, statusCode: number, endpoint = ''): string {
+  const isFamilyEndpoint = endpoint.startsWith('/accounts/family/');
+
+  if (!errorData || typeof errorData !== 'object') {
+    if (isFamilyEndpoint && statusCode === 404) {
+      return 'Não foi possível acessar a funcionalidade de família no servidor. Atualize o backend e tente novamente.';
+    }
+    return `Erro ${statusCode}`;
+  }
 
   const data = errorData as Record<string, unknown>;
   if (typeof data.error === 'string') return data.error;
-  if (typeof data.detail === 'string') return data.detail;
+  if (typeof data.detail === 'string') {
+    if (isFamilyEndpoint && statusCode === 404 && data.detail.toLowerCase() === 'not found.') {
+      return 'Não foi possível acessar a funcionalidade de família no servidor. Atualize o backend e tente novamente.';
+    }
+    return data.detail;
+  }
 
   const messages = Object.entries(data).flatMap(([field, value]) => {
     if (Array.isArray(value)) {
@@ -145,6 +161,10 @@ function extractErrorMessage(errorData: unknown, statusCode: number): string {
     }
     return [];
   });
+
+  if (isFamilyEndpoint && statusCode === 404) {
+    return 'Não foi possível acessar a funcionalidade de família no servidor. Atualize o backend e tente novamente.';
+  }
 
   return messages[0] || `Erro ${statusCode}`;
 }

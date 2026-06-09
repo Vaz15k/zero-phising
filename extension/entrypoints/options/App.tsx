@@ -50,6 +50,14 @@ type Tab = 'rules' | 'family' | 'login' | 'register' | 'blocklists';
 type RuleType = 'whitelist' | 'blacklist';
 type Feedback = { type: 'success' | 'error'; message: string } | null;
 
+function getInitialTab(): Tab {
+  const tab = new URLSearchParams(window.location.search).get('tab');
+  if (tab === 'family' || tab === 'blocklists' || tab === 'login' || tab === 'register') {
+    return tab;
+  }
+  return 'rules';
+}
+
 export default function App() {
   const [rules, setRules] = useState<UrlRule[]>([]);
   const [auth, setAuth] = useState<AuthState>({ user: null, isAuthenticated: false });
@@ -59,7 +67,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<FamilyNotification[]>([]);
   const [newWhitelist, setNewWhitelist] = useState('');
   const [newBlacklist, setNewBlacklist] = useState('');
-  const [tab, setTab] = useState<Tab>('rules');
+  const [tab, setTab] = useState<Tab>(getInitialTab);
   const [blockLists, setBlockLists] = useState<BlockList[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
 
@@ -591,7 +599,7 @@ function FamilyPanel({
             </p>
           )}
           {sentInvitations.length > 0 && (
-            <ul className="compact-list">
+            <ul className="compact-list invitation-list">
               {sentInvitations.map(invitation => (
                 <li key={invitation.id}>
                   <span>
@@ -599,7 +607,7 @@ function FamilyPanel({
                       {displayName(invitation.invited_user_first_name, invitation.invited_user_last_name, invitation.invited_user_username)}
                       <span className="username-inline">@{invitation.invited_user_username}</span>
                     </strong>
-                    <span className="secondary-text">{invitation.email} · {invitation.status}</span>
+                    <span className="secondary-text">{invitation.email} · {formatInvitationStatus(invitation)}</span>
                   </span>
                   {invitation.status === 'pending' && (
                     <button className="icon-button" title="Cancelar convite" onClick={() => run(async () => { await cancelFamilyInvitation(invitation.id); })}>
@@ -685,6 +693,20 @@ function InvitationInbox({
 function formatInvitationUser(firstName: string, lastName: string, username: string) {
   const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
   return `${fullName || username} (@${username})`;
+}
+
+function formatInvitationStatus(invitation: FamilyInvitation) {
+  if (invitation.status === 'accepted') {
+    return `Membro desde ${formatDate(invitation.responded_at || invitation.created_at)}`;
+  }
+  if (invitation.status === 'pending') return 'Pendente';
+  if (invitation.status === 'declined') return `Recusado em ${formatDate(invitation.responded_at || invitation.created_at)}`;
+  if (invitation.status === 'cancelled') return `Cancelado em ${formatDate(invitation.responded_at || invitation.created_at)}`;
+  return invitation.status;
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString('pt-BR');
 }
 
 function LoginForm({ onLogin, onSwitch }: { onLogin: () => void, onSwitch: () => void }) {

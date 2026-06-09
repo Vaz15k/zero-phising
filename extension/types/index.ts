@@ -10,4 +10,4 @@ export interface User {
   last_login: string | null;
 }
 
-export type PopupPage = 'main' | 'login' | 'register' | 'profile' | 'parental-control' | 'breaches';
+export type PopupPage = 'main' | 'login' | 'register' | 'profile' | 'parental-control' | 'breaches' | 'settings';

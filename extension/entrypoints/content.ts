@@ -3,7 +3,7 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener((message) => {
       if (message.type === 'SHOW_WARNING_POPUP') {
-        const { reputation, isCustomBlacklist } = message;
+        const { reputation, isCustomBlacklist, source } = message;
         
         // Verifica se já existe um alerta para não duplicar
         if (document.getElementById('zero-phishing-warning-popup')) return;
@@ -18,10 +18,13 @@ export default defineContentScript({
         let title = '';
         let messageText = '';
         if (isCustomBlacklist) {
-          title = '🚫 Site Bloqueado pelo Administrador';
-          messageText = 'Este site foi <strong>bloqueado manualmente</strong> nas configurações do Zero Phishing e não pode ser acessado.';
+          const isFamilyBlacklist = source === 'family';
+          title = isFamilyBlacklist ? 'Site bloqueado pela lista familiar' : 'Site bloqueado pela sua lista pessoal';
+          messageText = isFamilyBlacklist
+            ? 'Este site foi <strong>bloqueado por uma regra familiar</strong> nas configurações do Zero Phishing e não pode ser acessado.'
+            : 'Este site foi <strong>bloqueado manualmente</strong> na sua lista pessoal do Zero Phishing e não pode ser acessado.';
         } else {
-          title = isDanger ? '⚠️ Site Perigoso Bloqueado!' : '⚠️ Site Suspeito!';
+          title = isDanger ? 'Site perigoso bloqueado' : 'Site suspeito';
           messageText = `O <strong>Zero Phishing</strong> detectou que este site tem reputação <strong>${isDanger ? 'ruim' : 'suspeita'}</strong>.
             ${isDanger ? 'Recomendamos que você saia imediatamente.' : 'Tome cuidado ao fornecer informações pessoais.'}`;
         }

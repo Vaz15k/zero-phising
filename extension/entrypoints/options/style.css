@@ -9,18 +9,17 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background-color: #0f172a;
     color: #f1f5f9;
-    min-width: 1000px;
     padding: 16px;
 }
 
 .options-container {
-    width: 70%;
-    min-width: 960px;
+    width: min(1200px, 100%);
+    min-width: 0;
     max-width: 1200px;
     min-height: calc(100vh - 32px);
     margin: 0 auto;
     background: #1e293b;
-    padding: 32px 48px;
+    padding: clamp(20px, 4vw, 48px);
     border-radius: 16px;
     border: 1px solid #334155;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
@@ -28,6 +27,7 @@ body {
 
 .tabs {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 24px;
     border-bottom: 1px solid #334155;
@@ -56,17 +56,19 @@ header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 16px;
     border-bottom: 1px solid #334155;
     padding-bottom: 24px;
     margin-bottom: 32px;
 }
 
 h1 {
-    font-size: 24px;
+    font-size: clamp(20px, 3vw, 24px);
     color: #f8fafc;
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 0;
 }
 
 h2 {
@@ -85,13 +87,15 @@ h2 {
 
 .rule-form {
     display: flex;
+    flex-wrap: wrap;
     gap: 12px;
     margin-top: 16px;
     margin-bottom: 20px;
 }
 
 .rule-grid {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
     gap: 30px;
 }
 
@@ -119,6 +123,7 @@ h2 {
     cursor: pointer;
     font-weight: 600;
     transition: background 0.2s;
+    white-space: nowrap;
 }
 
 .btn-primary:hover {
@@ -157,6 +162,7 @@ h2 {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
     padding: 14px 16px;
     background: #0f172a;
     border: 1px solid #334155;
@@ -206,6 +212,7 @@ h2 {
 
 .family-form {
     display: flex;
+    flex-wrap: wrap;
     gap: 12px;
     align-items: center;
 }
@@ -241,11 +248,13 @@ h2 {
     flex-direction: column;
     gap: 3px;
     min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .secondary-text {
     color: #94a3b8;
     font-size: 13px;
+    overflow-wrap: anywhere;
 }
 
 .username-inline {
@@ -257,9 +266,16 @@ h2 {
 
 .member-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
+}
+
+.invitation-list {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #334155;
 }
 
 .role-pill {
@@ -353,19 +369,54 @@ code {
     }
 
     .options-container {
-        padding: 24px;
+        padding: 20px;
+        border-radius: 12px;
     }
 
     header,
     .family-header,
-    .rule-grid,
     .family-form {
         flex-direction: column;
         align-items: stretch;
     }
 
+    .rule-form {
+        flex-direction: column;
+    }
+
     .compact-list li {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .member-actions {
+        width: 100%;
+    }
+}
+
+@media (max-width: 520px) {
+    body {
+        padding: 8px;
+    }
+
+    .options-container {
+        min-height: calc(100vh - 16px);
+        padding: 16px;
+    }
+
+    header {
+        margin-bottom: 24px;
+    }
+
+    .tabs button,
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .family-block {
+        padding: 14px;
     }
 }
