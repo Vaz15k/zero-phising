@@ -11,3 +11,14 @@ export interface User {
 }
 
 export type PopupPage = 'main' | 'login' | 'register' | 'profile' | 'parental-control' | 'breaches' | 'settings';
+
+export interface BlockedAccess {
+  id: number;
+  url: string;
+  timestamp: string;
+  user: number | null;
+  username: string | null;
+  group: number | null;
+  group_name: string | null;
+  block_source: 'USER' | 'GROUP';
+}

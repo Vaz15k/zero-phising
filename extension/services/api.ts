@@ -1,4 +1,5 @@
 import { getLocalRules, addLocalRule, deleteLocalRule as deleteFromStorage, deleteLocalRuleByPattern } from './storage';
+import type { BlockedAccess } from '../types';
 
 const API_BASE = import.meta.env.WXT_API_URL || 'http://127.0.0.1:8000';
 
@@ -336,6 +337,36 @@ export async function deleteUrlRule(rule: UrlRule): Promise<void> {
     } catch (error) {
       console.error('Erro de conexão ao excluir regra no servidor:', error);
     }
+  }
+}
+// Registra um bloqueio no backend
+export async function reportBlockedAccess(url: string, blockSource: 'USER' | 'GROUP' = 'USER'): Promise<unknown> {
+  try {
+    return await request('/accounts/report-block/', {
+      method: 'POST',
+      body: {
+        url: url,
+        block_source: blockSource
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao registrar o bloqueio no servidor:', error);
+    return null;
+  }
+}
+
+// Busca o histórico de bloqueios (apenas para Admin)
+export async function getBlockedHistory(sourceFilter?: 'USER' | 'GROUP'): Promise<BlockedAccess[]> {
+  let endpoint = '/accounts/blocked-history/';
+  if (sourceFilter && sourceFilter !== 'ALL' as never) {
+    endpoint += `?source=${sourceFilter}`;
+  }
+
+  try {
+    return await request<BlockedAccess[]>(endpoint);
+  } catch (error) {
+    console.error('Erro ao buscar histórico de bloqueios:', error);
+    return [];
   }
 }
 

@@ -48,6 +48,7 @@ export default function App() {
 function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { user: User | null; isAuthenticated: boolean; onLogout: () => void; onNavigate: (p: PopupPage) => void; currentPage: PopupPage }) {
   if (currentPage !== 'main') return null;
 
+
   return (
     <header>
       <div className="logo"><Shield size={24} color="#3b82f6" /></div>
@@ -63,6 +64,7 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
         <button className="icon-btn" onClick={() => onNavigate('settings')} title="Configurações"><Settings size={18} /></button>
         {isAuthenticated && (
           <>
+            <button className="icon-btn" onClick={() => onNavigate('breaches')} title="Verificar Vazamentos">🔍</button>
             <button className="icon-btn" onClick={() => onNavigate('profile')} title="Perfil"><UserIcon size={18} /></button>
             <button className="icon-btn" onClick={onLogout} title="Sair"><LogOut size={18} /></button>
           </>

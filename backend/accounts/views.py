@@ -14,6 +14,7 @@ from .models import (
     DefaultBlockList,
     DefaultBlockListDomain,
     UserBlockListActivation,
+    BlockedAccess,
     Family,
     FamilyMember,
     FamilyInvitation,
@@ -29,6 +30,7 @@ from .serializers import (
     ParentalControlSerializer,
     CustomURLRuleSerializer,
     DefaultBlockListSerializer,
+    BlockedAccessSerializer,
     FamilySerializer,
     FamilyMemberSerializer,
     FamilyInvitationSerializer,
@@ -260,6 +262,28 @@ class ActiveBlockDomainsView(APIView):
         ).values_list('domain', flat=True)
 
         return Response({'domains': list(domains)})
+
+
+class BlockedAccessHistoryView(generics.ListAPIView):
+    serializer_class = BlockedAccessSerializer
+    permission_classes = (permissions.IsAdminUser,)
+
+    def get_queryset(self):
+        queryset = BlockedAccess.objects.all()
+        source = self.request.query_params.get('source', None)
+
+        if source:
+            queryset = queryset.filter(block_source__iexact=source)
+
+        return queryset
+
+
+class ReportBlockView(generics.CreateAPIView):
+    serializer_class = BlockedAccessSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 class FamilyView(APIView):

@@ -1,4 +1,4 @@
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser,Group
 from django.db import models
 
 
@@ -126,6 +126,44 @@ class CustomURLRule(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.rule_type} - {self.url_pattern}"
+class BlockedAccess(models.Model):
+    BLOCK_SOURCE_CHOICES = (
+        ('USER', 'Usuário'),
+        ('GROUP', 'Grupo'),
+    )
+
+    url = models.URLField(max_length=2048, verbose_name="URL Bloqueada")
+    timestamp = models.DateTimeField(auto_now_add=True, verbose_name="Data e Hora")
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='blocked_accesses'
+    )
+    group = models.ForeignKey(
+        Group,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='blocked_accesses'
+    )
+
+    block_source = models.CharField(
+        max_length=10,
+        choices=BLOCK_SOURCE_CHOICES,
+        default='USER',
+        verbose_name="Origem do Bloqueio"
+    )
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Acesso Bloqueado'
+        verbose_name_plural = 'Acessos Bloqueados'
+
+    def __str__(self):
+        return f"{self.url} - {self.timestamp.strftime('%d/%m/%Y %H:%M')}"
 
 
 class Family(models.Model):

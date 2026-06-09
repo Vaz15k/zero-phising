@@ -1,4 +1,5 @@
 import { checkUrl } from '../features/phishing/phishingChecker';
+import { reportBlockedAccess } from '../services/api';
 
 export default defineBackground(() => {
   browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
@@ -33,6 +34,14 @@ export default defineBackground(() => {
           message: "Este site foi identificado como uma ameaça ou está na sua blacklist.",
           priority: 2,
         });
+
+        // ==========================================
+        // CÓDIGO NOVO: REGISTAR BLOQUEIO NO BACKEND
+        // ==========================================
+        reportBlockedAccess(tab.url, 'USER')
+          .then(() => console.log('[Zero Phishing] Bloqueio registado no histórico.'))
+          .catch((err) => console.error('[Zero Phishing] Erro ao registar bloqueio:', err));
+        // ==========================================
       }
 
       // Atualiza o ícone (Badge)
