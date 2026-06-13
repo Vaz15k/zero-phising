@@ -1,0 +1,34 @@
+@startuml
+|Usuário|
+start
+:Acessa uma URL no navegador;
+
+|Extensão (Background/Content)|
+:Intercepta o carregamento;
+if (URL está na Whitelist do usuário/grupo?) then (Sim)
+  :Permite o acesso;
+else (Não)
+  if (URL está na Blacklist ou Listas Padrão ativas?) then (Sim)
+    :Redireciona para Página de Aviso (Bloqueio);
+    |Usuário|
+    :Visualiza motivo do bloqueio;
+    stop
+  else (Não)
+    |APIs Externas|
+    :Consulta reputação da URL (SafeBrowsing/VirusTotal);
+    
+    |Extensão (Background/Content)|
+    if (Ameaça detectada?) then (Sim)
+      :Aciona Popup de Alerta (Cor Dinâmica);
+      :Redireciona para Página de Aviso;
+      stop
+    else (Não)
+      :Carrega a página normalmente;
+    endif
+  endif
+endif
+
+|Usuário|
+:Navega com segurança;
+stop
+@enduml

@@ -1,0 +1,51 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+class User {
+  + id : Integer
+  + username : String
+  + email : String
+  + pin : String
+  + is_active : Boolean
+}
+
+class ParentalControl {
+  + guardian_id : FK
+  + dependent_id : FK
+  + is_active : Boolean
+  + created_at : DateTime
+}
+
+class DefaultBlockList {
+  + name : String
+  + category : String
+  + description : Text
+  + source_url : URL
+  + created_at : DateTime
+}
+
+class DefaultBlockListDomain {
+  + block_list_id : FK
+  + domain : String
+}
+
+class UserBlockListActivation {
+  + user_id : FK
+  + block_list_id : FK
+  + is_active : Boolean
+}
+
+class CustomURLRule {
+  + user_id : FK
+  + url_pattern : String
+  + rule_type : String [whitelist | blacklist]
+}
+
+User "1" -- "0..*" ParentalControl : "guardian (wards)"
+User "1" -- "0..*" ParentalControl : "dependent (guardians)"
+User "1" -- "0..*" UserBlockListActivation
+User "1" -- "0..*" CustomURLRule
+
+DefaultBlockList "1" -- "0..*" DefaultBlockListDomain
+DefaultBlockList "1" -- "0..*" UserBlockListActivation
+@enduml

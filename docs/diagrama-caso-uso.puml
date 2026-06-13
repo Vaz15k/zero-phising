@@ -1,0 +1,36 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Usuário / Dependente" as user
+actor "Administrador (Responsável)" as admin
+actor "APIs Externas (SafeBrowsing / Pwned)" as api
+
+package "ZeroPhishing - Extensão" {
+  usecase "Verificar segurança de URLs" as UC1
+  usecase "Visualizar alertas (Popup dinâmico)" as UC2
+  usecase "Verificar vazamento de e-mail" as UC3
+  usecase "Acessar configurações gerais" as UC4
+  
+  usecase "Gerenciar Whitelist / Blacklist" as UC5
+  usecase "Ativar listas de bloqueio padrão" as UC6
+  usecase "Gerenciar Grupo Familiar" as UC7
+  usecase "Visualizar histórico de bloqueios" as UC8
+  usecase "Realizar Autenticação (Login/PIN)" as UC9
+}
+
+user --> UC1
+user --> UC2
+user --> UC3
+user --> UC4
+
+admin -|> user
+admin --> UC5
+admin --> UC6
+admin --> UC7
+admin --> UC8
+admin --> UC9
+
+UC1 ..> api : "Consulta reputação"
+UC3 ..> api : "Consulta k-anonymity"
+@enduml
