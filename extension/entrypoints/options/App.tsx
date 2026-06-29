@@ -103,6 +103,14 @@ export default function App() {
   const [dashboardFamilyView, setDashboardFamilyView] = useState(false);
   const dashboardRequestId = useRef(0);
   const [showAuthModal, setShowAuthModal] = useState<'login' | 'register' | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const handleNotificationClick = async (n: FamilyNotification) => {
+    if (!n.is_read) {
+      await markFamilyNotificationRead(n.id);
+      setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, is_read: true } : notif));
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -211,7 +219,37 @@ export default function App() {
         {auth.isAuthenticated ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#cbd5e1' }}>
-              <UserIcon size={20} />
+              <div style={{ position: 'relative' }}>
+                <button 
+                  className="icon-btn" 
+                  style={{ background: 'transparent', border: 'none', position: 'relative', cursor: 'pointer', padding: '6px', color: '#cbd5e1', display: 'flex' }}
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  title="Notificações"
+                >
+                  <Bell size={20} />
+                  {notifications.filter(n => !n.is_read).length > 0 && (
+                    <span className="notification-badge">{notifications.filter(n => !n.is_read).length}</span>
+                  )}
+                </button>
+                {showNotifications && (
+                  <div className="notifications-dropdown">
+                    <div className="notifications-header">Notificações</div>
+                    <div className="notifications-list">
+                      {notifications.length === 0 ? (
+                        <p className="notifications-empty">Nenhuma notificação</p>
+                      ) : (
+                        notifications.map(n => (
+                          <div key={n.id} className={`notification-item ${!n.is_read ? 'unread' : ''}`} onClick={() => handleNotificationClick(n)}>
+                            <p>{n.message}</p>
+                            <small>{new Date(n.created_at).toLocaleString('pt-BR')}</small>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <UserIcon size={20} style={{ marginLeft: '8px' }} />
               <span>{auth.user?.first_name || auth.user?.username}</span>
             </div>
             <button className="btn-danger" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={async () => { await logout(); setTab('rules'); await loadData(); }}>
@@ -770,6 +808,7 @@ function FamilyPanel({
   const [error, setError] = useState('');
   const [inviteFeedback, setInviteFeedback] = useState<Feedback>(null);
   const [loading, setLoading] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const isAdmin = family?.current_user_role === 'admin';
 
   async function run(action: () => Promise<void>) {
@@ -858,40 +897,31 @@ function FamilyPanel({
   return (
     <section className="family-section">
       <div className="family-header">
-        <div>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
             <Users size={22} /> {family.name}
           </h2>
-          <span className="role-pill">{isAdmin ? 'Administrador' : 'Membro'}</span>
+          <span className="role-pill" style={{ marginTop: 0 }}>{isAdmin ? 'Administrador' : 'Membro'}</span>
         </div>
       </div>
 
       {error && <p className="form-error">{error}</p>}
 
-      {notifications.length > 0 && (
-        <div className="family-block">
-          <h3><Bell size={18} /> Notificações</h3>
-          <ul className="compact-list">
-            {notifications.map(notification => (
-              <li key={notification.id} className={notification.is_read ? 'muted-row' : ''}>
-                <span>{notification.message}</span>
-                {!notification.is_read && (
-                  <button className="icon-button" title="Marcar como lida" onClick={() => run(async () => { await markFamilyNotificationRead(notification.id); })}>
-                    <Check size={16} />
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+
 
       {receivedInvitations.length > 0 && (
         <InvitationInbox invitations={receivedInvitations} loading={loading} onRun={run} />
       )}
 
       <div className="family-block">
-        <h3><UserIcon size={18} /> Membros</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+          <h3 style={{ margin: 0 }}><UserIcon size={18} /> Membros</h3>
+          {isAdmin && (
+            <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '13px' }} onClick={() => setShowInviteModal(true)}>
+              <UserPlus size={16} /> Convites
+            </button>
+          )}
+        </div>
         <ul className="compact-list">
           {family.members.map(member => (
             <li key={member.id}>
@@ -900,7 +930,7 @@ function FamilyPanel({
                   {displayName(member.first_name, member.last_name, member.username)}
                   <span className="username-inline">@{member.username}</span>
                 </strong>
-                <span className="secondary-text">{member.email}</span>
+                <span className="secondary-text">{member.email} · Membro desde {formatDate(member.created_at)}</span>
               </span>
               <span className="member-actions">
                 {member.role === 'admin' && <Crown size={16} color="#facc15" />}
@@ -924,52 +954,60 @@ function FamilyPanel({
         </ul>
       </div>
 
-      {isAdmin && (
-        <div className="family-block">
-          <h3><UserPlus size={18} /> Convites</h3>
-          <div className="family-form">
-            <input
-              className="rule-input"
-              placeholder="Email ou usuário"
-              value={inviteIdentifier}
-              onChange={event => {
-                setInviteIdentifier(event.target.value);
-                if (inviteFeedback) setInviteFeedback(null);
-              }}
-            />
-            <button
-              className={`btn-primary ${inviteFeedback?.type === 'error' ? 'btn-warning' : ''}`}
-              disabled={loading || !inviteIdentifier.trim()}
-              onClick={sendInvite}
-            >
-              <Mail size={18} /> Enviar
-            </button>
+      {showInviteModal && isAdmin && (
+        <div className="modal-overlay" onClick={() => setShowInviteModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '520px', width: '90%', background: 'linear-gradient(135deg, #0f172a 0%, #1a2744 100%)', borderRadius: '16px', border: '1px solid #334155', padding: '32px' }} onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowInviteModal(false)}><X size={20} /></button>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f1f5f9', marginBottom: '28px', marginTop: '4px' }}>
+              <UserPlus size={22} color="#3b82f6" /> Enviar Convite
+            </h2>
+            <div className="family-form">
+              <input
+                className="rule-input"
+                placeholder="Email ou usuário"
+                value={inviteIdentifier}
+                onChange={event => {
+                  setInviteIdentifier(event.target.value);
+                  if (inviteFeedback) setInviteFeedback(null);
+                }}
+              />
+              <button
+                className={`btn-primary ${inviteFeedback?.type === 'error' ? 'btn-warning' : ''}`}
+                disabled={loading || !inviteIdentifier.trim()}
+                onClick={sendInvite}
+              >
+                <Mail size={18} /> Convidar
+              </button>
+            </div>
+            {inviteFeedback && (
+              <p className={inviteFeedback.type === 'error' ? 'form-warning' : 'form-success'}>
+                {inviteFeedback.message}
+              </p>
+            )}
+            {sentInvitations.length > 0 && (
+              <div style={{ marginTop: '24px' }}>
+                <h4 style={{ color: '#cbd5e1', fontSize: '14px', marginBottom: '12px' }}>Convites Enviados</h4>
+                <ul className="compact-list invitation-list">
+                  {sentInvitations.map(invitation => (
+                    <li key={invitation.id} style={{ background: 'transparent', border: '1px solid #334155' }}>
+                      <span>
+                        <strong>
+                          {displayName(invitation.invited_user_first_name, invitation.invited_user_last_name, invitation.invited_user_username)}
+                          <span className="username-inline">@{invitation.invited_user_username}</span>
+                        </strong>
+                        <span className="secondary-text">{invitation.email} · {formatInvitationStatus(invitation)}</span>
+                      </span>
+                      {invitation.status === 'pending' && (
+                        <button className="icon-button" title="Cancelar convite" onClick={() => run(async () => { await cancelFamilyInvitation(invitation.id); })}>
+                          <X size={16} />
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
-          {inviteFeedback && (
-            <p className={inviteFeedback.type === 'error' ? 'form-warning' : 'form-success'}>
-              {inviteFeedback.message}
-            </p>
-          )}
-          {sentInvitations.length > 0 && (
-            <ul className="compact-list invitation-list">
-              {sentInvitations.map(invitation => (
-                <li key={invitation.id}>
-                  <span>
-                    <strong>
-                      {displayName(invitation.invited_user_first_name, invitation.invited_user_last_name, invitation.invited_user_username)}
-                      <span className="username-inline">@{invitation.invited_user_username}</span>
-                    </strong>
-                    <span className="secondary-text">{invitation.email} · {formatInvitationStatus(invitation)}</span>
-                  </span>
-                  {invitation.status === 'pending' && (
-                    <button className="icon-button" title="Cancelar convite" onClick={() => run(async () => { await cancelFamilyInvitation(invitation.id); })}>
-                      <X size={16} />
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
 
@@ -1246,12 +1284,16 @@ function ProfilePanel({ user, onUpdate }: { user: User; onUpdate: (user: User) =
 }
 
 function RegisterForm({ onRegister, onSwitch }: { onRegister: () => void, onSwitch: () => void }) {
-  const [form, setForm] = useState({ username: '', email: '', password: '', first_name: '' });
+  const [form, setForm] = useState({ username: '', email: '', password: '', confirm_password: '', first_name: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (form.password !== form.confirm_password) {
+      setError('As senhas não coincidem');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -1278,6 +1320,7 @@ function RegisterForm({ onRegister, onSwitch }: { onRegister: () => void, onSwit
         <input className="rule-input" type="text" placeholder="Nome de Usuário" value={form.username} onChange={event => setForm({ ...form, username: event.target.value })} required />
         <input className="rule-input" type="email" placeholder="Email" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} required />
         <input className="rule-input" type="password" placeholder="Senha" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} required />
+        <input className="rule-input" type="password" placeholder="Confirmar Senha" value={form.confirm_password} onChange={event => setForm({ ...form, confirm_password: event.target.value })} required />
         {error && <p className="form-error">{error}</p>}
         <button className="btn-primary" type="submit" disabled={loading}>{loading ? 'Aguarde...' : 'Criar e Entrar'}</button>
       </form>

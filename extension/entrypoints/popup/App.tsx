@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { getSavedUser, logout, User, AuthState } from '../../services/auth';
 import { checkBreaches, Breach } from '../../services/breach';
 import { PopupPage } from '../../types';
-import { Shield, CheckCircle, LogOut, Settings, Loader2, ArrowLeft, Search, UserCircle } from 'lucide-react';
+import { Shield, CheckCircle, LogOut, Settings, Loader2, ArrowLeft, Search, UserCircle, Bell } from 'lucide-react';
+import { getFamilyNotifications, FamilyNotification, markFamilyNotificationRead } from '../../services/api';
 import './style.css';
 
 function openOptionsPage(isAuthenticated: boolean) {
@@ -14,11 +15,15 @@ export default function App() {
   const [auth, setAuth] = useState<AuthState>({ user: null, isAuthenticated: false });
   const [authLoading, setAuthLoading] = useState(true);
   const [page, setPage] = useState<PopupPage>('main');
+  const [notifications, setNotifications] = useState<FamilyNotification[]>([]);
 
   useEffect(() => {
     getSavedUser().then((state) => {
       setAuth(state);
       setAuthLoading(false);
+      if (state.isAuthenticated) {
+        getFamilyNotifications().then(setNotifications).catch(() => {});
+      }
     });
   }, []);
 
@@ -35,7 +40,15 @@ export default function App() {
 
   return (
     <>
-      <Header user={auth.user} isAuthenticated={auth.isAuthenticated} onLogout={() => { logout().then(() => { setAuth({ user: null, isAuthenticated: false }); }); }} onNavigate={setPage} currentPage={page} />
+      <Header 
+        user={auth.user} 
+        isAuthenticated={auth.isAuthenticated} 
+        onLogout={() => { logout().then(() => { setAuth({ user: null, isAuthenticated: false }); }); }} 
+        onNavigate={setPage} 
+        currentPage={page}
+        notifications={notifications}
+        setNotifications={setNotifications}
+      />
 
       {page === 'main' && <MainPage />}
       {page === 'breaches' && <BreachCheckerPage onBack={() => setPage('main')} />}
@@ -45,8 +58,21 @@ export default function App() {
   );
 }
 
-function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { user: User | null; isAuthenticated: boolean; onLogout: () => void; onNavigate: (p: PopupPage) => void; currentPage: PopupPage }) {
+function Header({ 
+  user, isAuthenticated, onLogout, onNavigate, currentPage, notifications = [], setNotifications 
+}: { 
+  user: User | null; isAuthenticated: boolean; onLogout: () => void; onNavigate: (p: PopupPage) => void; currentPage: PopupPage; notifications?: FamilyNotification[]; setNotifications?: React.Dispatch<React.SetStateAction<FamilyNotification[]>> 
+}) {
+  const [showNotifications, setShowNotifications] = useState(false);
+
   if (currentPage !== 'main') return null;
+
+  const handleNotificationClick = async (n: FamilyNotification) => {
+    if (!n.is_read && setNotifications) {
+      await markFamilyNotificationRead(n.id);
+      setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, is_read: true } : notif));
+    }
+  };
 
   return (
     <header>
@@ -64,6 +90,37 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
           <button className="icon-btn" onClick={() => openOptionsPage(false)} title="Entrar na conta">
             <UserCircle size={18} />
           </button>
+        )}
+        {isAuthenticated && (
+          <div style={{ position: 'relative' }}>
+            <button 
+              className="icon-btn" 
+              onClick={() => setShowNotifications(!showNotifications)} 
+              title="Notificações"
+            >
+              <Bell size={18} />
+              {notifications.filter(n => !n.is_read).length > 0 && (
+                <span className="notification-badge">{notifications.filter(n => !n.is_read).length}</span>
+              )}
+            </button>
+            {showNotifications && (
+              <div className="notifications-dropdown">
+                <div className="notifications-header">Notificações</div>
+                <div className="notifications-list">
+                  {notifications.length === 0 ? (
+                    <p className="notifications-empty">Nenhuma notificação</p>
+                  ) : (
+                    notifications.map(n => (
+                      <div key={n.id} className={`notification-item ${!n.is_read ? 'unread' : ''}`} onClick={() => handleNotificationClick(n)}>
+                        <p>{n.message}</p>
+                        <small>{new Date(n.created_at).toLocaleString('pt-BR')}</small>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         )}
         {isAuthenticated && (
           <button className="icon-btn" onClick={onLogout} title="Sair"><LogOut size={18} /></button>
