@@ -1,5 +1,10 @@
+from collections import Counter
+from datetime import timedelta
+from urllib.parse import urlparse
+
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from rest_framework import generics, permissions, serializers, status
@@ -533,3 +538,138 @@ class FamilyURLRuleDetailView(APIView):
 
         rule.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class DashboardStatsView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request):
+        period = request.query_params.get('period', '7d')
+        now = timezone.now()
+
+        if period == '30d':
+            start_date = now - timedelta(days=30)
+        elif period == 'all':
+            start_date = None
+        else:
+            start_date = now - timedelta(days=7)
+
+        include_family = request.query_params.get('family', '').lower() == 'true'
+
+        if include_family:
+            membership = get_active_membership(request.user)
+            if not membership or membership.role != 'admin':
+                return Response(
+                    {'error': 'Apenas administradores podem ver estatísticas da família.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            family_user_ids = FamilyMember.objects.filter(
+                family=membership.family,
+                is_active=True,
+            ).values_list('user_id', flat=True)
+            queryset = BlockedAccess.objects.filter(user__in=family_user_ids)
+        else:
+            queryset = BlockedAccess.objects.filter(user=request.user)
+
+        if start_date:
+            queryset = queryset.filter(timestamp__gte=start_date)
+
+        total_blocks = queryset.count()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        total_today = queryset.filter(timestamp__gte=today_start).count()
+
+        week_start = (now - timedelta(days=now.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        total_week = queryset.filter(timestamp__gte=week_start).count()
+
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        total_month = queryset.filter(timestamp__gte=month_start).count()
+
+        blocks_over_time = []
+        if start_date:
+            daily = (
+                queryset
+                .annotate(date=TruncDate('timestamp'))
+                .values('date')
+                .annotate(count=Count('id'))
+                .order_by('date')
+            )
+            blocks_over_time = list(daily)
+
+        top_urls = (
+            queryset
+            .values('url')
+            .annotate(count=Count('id'))
+            .order_by('-count')[:10]
+        )
+
+        all_urls = queryset.values_list('url', flat=True)
+
+        domain_counter = Counter()
+        for url in all_urls:
+            try:
+                parsed = urlparse(url)
+                domain = parsed.netloc or parsed.path
+                domain_counter[domain] += 1
+            except Exception:
+                pass
+
+        top_domains = [
+            {'domain': d, 'count': c}
+            for d, c in domain_counter.most_common(10)
+        ]
+
+        domain_category_map = {}
+        for bl in DefaultBlockList.objects.prefetch_related('domains').all():
+            for domain_obj in bl.domains.all():
+                domain_category_map[domain_obj.domain] = bl.category
+
+        category_counter = Counter()
+        for url in all_urls:
+            try:
+                parsed = urlparse(url)
+                domain = parsed.netloc or parsed.path
+                if ':' in domain:
+                    domain = domain.split(':')[0]
+                if domain.startswith('www.'):
+                    domain = domain[4:]
+                cat = domain_category_map.get(domain, 'unknown')
+                category_counter[cat] += 1
+            except Exception:
+                category_counter['unknown'] += 1
+
+        category_display = dict(DefaultBlockList.CATEGORY_CHOICES)
+        category_display['unknown'] = 'Outros / Não categorizado'
+
+        blocks_by_category = [
+            {'category': cat, 'category_display': category_display.get(cat, cat), 'count': count}
+            for cat, count in category_counter.most_common()
+        ]
+
+        blocks_by_user = []
+        if include_family:
+            user_agg = (
+                queryset
+                .values('user', 'user__username')
+                .annotate(count=Count('id'))
+                .order_by('-count')
+            )
+            blocks_by_user = [
+                {'user_id': u['user'], 'username': u['user__username'], 'count': u['count']}
+                for u in user_agg
+            ]
+
+        return Response({
+            'summary': {
+                'total_blocks': total_blocks,
+                'total_today': total_today,
+                'total_week': total_week,
+                'total_month': total_month,
+            },
+            'blocks_over_time': blocks_over_time,
+            'blocks_by_category': blocks_by_category,
+            'top_blocked_urls': list(top_urls),
+            'top_blocked_domains': top_domains,
+            'blocks_by_user': blocks_by_user,
+        })
