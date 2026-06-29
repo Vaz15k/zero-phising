@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   getUrlRules,
   addUrlRule,
@@ -19,15 +19,20 @@ import {
   addFamilyUrlRule,
   deleteFamilyUrlRule,
   getBlockedHistory,
+  getDashboardStats,
   Family,
   FamilyInvitation,
   FamilyNotification,
   BlockList,
   UrlRule,
+  DashboardStats,
+  DashboardPeriod,
+  DashboardCategory,
 } from '../../services/api';
 import type { BlockedAccess } from '../../types';
-import { getSavedUser, login, register, logout, AuthState } from '../../services/auth';
+import { getSavedUser, login, pinLogin, register, updateProfile, logout, AuthState, User } from '../../services/auth';
 import {
+  BarChart3,
   Bell,
   Check,
   CheckCircle,
@@ -48,14 +53,30 @@ import {
   ToggleRight,
   X,
 } from 'lucide-react';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import type { PieLabelRenderProps } from 'recharts';
 
-type Tab = 'rules' | 'family' | 'login' | 'register' | 'blocklists' | 'history';
+type Tab = 'rules' | 'family' | 'login' | 'register' | 'blocklists' | 'history' | 'profile' | 'dashboard';
 type RuleType = 'whitelist' | 'blacklist';
 type Feedback = { type: 'success' | 'error'; message: string } | null;
 
 function getInitialTab(): Tab {
   const tab = new URLSearchParams(window.location.search).get('tab');
-  if (tab === 'family' || tab === 'blocklists' || tab === 'history' || tab === 'login' || tab === 'register') {
+  if (tab === 'family' || tab === 'blocklists' || tab === 'history' || tab === 'login' || tab === 'register' || tab === 'profile' || tab === 'dashboard') {
     return tab;
   }
   return 'rules';
@@ -76,6 +97,11 @@ export default function App() {
   const [historyData, setHistoryData] = useState<BlockedAccess[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<'mine' | 'family'>('mine');
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [loadingDashboard, setLoadingDashboard] = useState(false);
+  const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriod>('7d');
+  const [dashboardFamilyView, setDashboardFamilyView] = useState(false);
+  const dashboardRequestId = useRef(0);
 
   useEffect(() => {
     loadData();
@@ -150,6 +176,20 @@ export default function App() {
     }
   }
 
+  async function loadDashboard(period: DashboardPeriod = dashboardPeriod, family: boolean = dashboardFamilyView) {
+    const requestId = ++dashboardRequestId.current;
+    setLoadingDashboard(true);
+    try {
+      const data = await getDashboardStats({ period, family });
+      if (requestId !== dashboardRequestId.current) return;
+      setDashboardStats(data);
+    } catch (e) {
+      console.error('Erro ao buscar estatísticas do dashboard:', e);
+    } finally {
+      if (requestId === dashboardRequestId.current) setLoadingDashboard(false);
+    }
+  }
+
   const personalRules = rules.filter(rule => rule.source !== 'family');
   const whitelist = personalRules.filter(rule => rule.rule_type === 'whitelist');
   const blacklist = personalRules.filter(rule => rule.rule_type === 'blacklist');
@@ -182,6 +222,9 @@ export default function App() {
 
       {auth.isAuthenticated && (
         <div className="tabs">
+          <button className={tab === 'profile' ? 'tab-active' : ''} onClick={() => setTab('profile')}>
+            <UserIcon size={16} /> Perfil
+          </button>
           <button className={tab === 'rules' ? 'tab-active' : ''} onClick={() => setTab('rules')}>
             <Shield size={16} /> Regras
           </button>
@@ -193,6 +236,9 @@ export default function App() {
           </button>
           <button className={tab === 'history' ? 'tab-active' : ''} onClick={() => { setTab('history'); setHistoryFilter('mine'); loadHistory('mine'); }}>
             <History size={16} /> Histórico
+          </button>
+          <button className={tab === 'dashboard' ? 'tab-active' : ''} onClick={() => { setTab('dashboard'); loadDashboard(dashboardPeriod, dashboardFamilyView); }}>
+            <BarChart3 size={16} /> Dashboard
           </button>
         </div>
       )}
@@ -258,6 +304,22 @@ export default function App() {
             </div>
           )}
         </div>
+      )}
+
+      {tab === 'profile' && auth.isAuthenticated && auth.user && (
+        <ProfilePanel user={auth.user} onUpdate={(updatedUser) => setAuth({ user: updatedUser, isAuthenticated: true })} />
+      )}
+
+      {tab === 'dashboard' && auth.isAuthenticated && (
+        <DashboardPanel
+          stats={dashboardStats}
+          loading={loadingDashboard}
+          period={dashboardPeriod}
+          onPeriodChange={(period) => { setDashboardPeriod(period); loadDashboard(period, dashboardFamilyView); }}
+          isAdmin={family?.current_user_role === 'admin'}
+          familyView={dashboardFamilyView}
+          onFamilyViewChange={(value) => { setDashboardFamilyView(value); loadDashboard(dashboardPeriod, value); }}
+        />
       )}
 
       {tab === 'family' && auth.isAuthenticated && (
@@ -467,6 +529,229 @@ function BlockListsPanel({
             <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Nenhuma lista disponível. Execute o comando seed no servidor.</p>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  adult: '#f97316',
+  social_media: '#3b82f6',
+  malware: '#ef4444',
+  fakenews: '#eab308',
+  gambling: '#a855f7',
+  unknown: '#64748b',
+};
+
+function getCategoryColor(category: string): string {
+  return CATEGORY_COLORS[category] || '#22d3ee';
+}
+
+function shortenUrl(url: string, max = 60): string {
+  return url.length > max ? `${url.slice(0, max)}…` : url;
+}
+
+function KpiCard({ label, value, accent, icon }: { label: string; value: React.ReactNode; accent: string; icon: React.ReactNode }) {
+  return (
+    <div style={{
+      flex: '1 1 200px',
+      background: '#0f172a',
+      border: '1px solid #334155',
+      borderRadius: '12px',
+      padding: '16px 18px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      minWidth: 0,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '13px' }}>
+        <span style={{ color: accent, display: 'flex' }}>{icon}</span> {label}
+      </div>
+      <strong style={{ fontSize: '22px', color: '#f1f5f9', wordBreak: 'break-word' }}>{value}</strong>
+    </div>
+  );
+}
+
+function DashboardPanel({
+  stats,
+  loading,
+  period,
+  onPeriodChange,
+  isAdmin,
+  familyView,
+  onFamilyViewChange,
+}: {
+  stats: DashboardStats | null;
+  loading: boolean;
+  period: DashboardPeriod;
+  onPeriodChange: (period: DashboardPeriod) => void;
+  isAdmin: boolean;
+  familyView: boolean;
+  onFamilyViewChange: (value: boolean) => void;
+}) {
+  const topDomain = stats?.top_blocked_domains[0];
+  const topCategory = stats?.blocks_by_category[0];
+
+  return (
+    <div>
+      <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#22d3ee', marginBottom: '10px' }}>
+        <BarChart3 size={24} color="#22d3ee" /> Dashboard de Bloqueios
+      </h2>
+      <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '20px' }}>
+        Estatísticas dos acessos bloqueados {familyView ? 'da família' : 'da sua conta'}.
+      </p>
+
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+        {(['7d', '30d', 'all'] as DashboardPeriod[]).map(value => (
+          <button
+            key={value}
+            className="btn-primary"
+            style={{ background: period === value ? '#3b82f6' : '#334155' }}
+            onClick={() => onPeriodChange(value)}
+          >
+            {value === '7d' ? '7 dias' : value === '30d' ? '30 dias' : 'Tudo'}
+          </button>
+        ))}
+        {isAdmin && (
+          <button
+            className="btn-primary"
+            style={{ background: familyView ? '#7c3aed' : '#334155', display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}
+            onClick={() => onFamilyViewChange(!familyView)}
+          >
+            <Users size={16} /> {familyView ? 'Vendo: Família' : 'Ver família'}
+          </button>
+        )}
+      </div>
+
+      {loading && <p style={{ color: '#94a3b8' }}>Carregando estatísticas...</p>}
+
+      {!loading && !stats && (
+        <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Nenhum dado disponível.</p>
+      )}
+
+      {!loading && stats && (
+        <>
+          <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '24px' }}>
+            <KpiCard label="Total no período" value={stats.summary.total_blocks} accent="#3b82f6" icon={<ShieldAlert size={18} />} />
+            <KpiCard label="Hoje" value={stats.summary.total_today} accent="#f59e0b" icon={<History size={18} />} />
+            <KpiCard label="Esta semana" value={stats.summary.total_week} accent="#a855f7" icon={<History size={18} />} />
+            <KpiCard label="Este mês" value={stats.summary.total_month} accent="#10b981" icon={<History size={18} />} />
+            <KpiCard
+              label="Domínio mais bloqueado"
+              value={topDomain ? `${topDomain.domain} (${topDomain.count})` : '—'}
+              accent="#ef4444"
+              icon={<Globe size={18} />}
+            />
+            <KpiCard
+              label="Categoria mais bloqueada"
+              value={topCategory ? `${topCategory.category_display} (${topCategory.count})` : '—'}
+              accent={topCategory ? getCategoryColor(topCategory.category) : '#64748b'}
+              icon={<List size={18} />}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: '20px', marginBottom: '20px' }}>
+            {stats.blocks_over_time.length > 0 && (
+              <div className="family-block">
+                <h3 style={{ marginBottom: '14px' }}>Bloqueios por período</h3>
+                <ResponsiveContainer width="100%" height={260}>
+                  <AreaChart data={stats.blocks_over_time}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
+                    <YAxis stroke="#94a3b8" fontSize={12} allowDecimals={false} />
+                    <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }} labelStyle={{ color: '#e2e8f0' }} />
+                    <Area type="monotone" dataKey="count" name="Bloqueios" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} isAnimationActive={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {stats.blocks_by_category.length > 0 && (
+              <div className="family-block">
+                <h3 style={{ marginBottom: '14px' }}>Bloqueios por categoria</h3>
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={stats.blocks_by_category}
+                      dataKey="count"
+                      nameKey="category_display"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={90}
+                      isAnimationActive={false}
+                      label={(props: PieLabelRenderProps) => {
+                        const entry = props.payload as DashboardCategory;
+                        return `${entry.category_display}: ${entry.count}`;
+                      }}
+                    >
+                      {stats.blocks_by_category.map(entry => (
+                        <Cell key={entry.category} fill={getCategoryColor(entry.category)} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }} />
+                    <Legend wrapperStyle={{ color: '#cbd5e1', fontSize: '12px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {stats.top_blocked_domains.length > 0 && (
+              <div className="family-block">
+                <h3 style={{ marginBottom: '14px' }}>Top domínios bloqueados</h3>
+                <ResponsiveContainer width="100%" height={Math.max(220, stats.top_blocked_domains.length * 36)}>
+                  <BarChart data={stats.top_blocked_domains} layout="vertical" margin={{ left: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis type="number" stroke="#94a3b8" fontSize={12} allowDecimals={false} />
+                    <YAxis type="category" dataKey="domain" stroke="#94a3b8" fontSize={12} width={150} />
+                    <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }} />
+                    <Bar dataKey="count" name="Bloqueios" fill="#ef4444" radius={[0, 4, 4, 0]} isAnimationActive={false} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {familyView && stats.blocks_by_user.length > 0 && (
+              <div className="family-block">
+                <h3 style={{ marginBottom: '14px' }}>Bloqueios por usuário da família</h3>
+                <ResponsiveContainer width="100%" height={Math.max(220, stats.blocks_by_user.length * 36)}>
+                  <BarChart data={stats.blocks_by_user} layout="vertical" margin={{ left: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis type="number" stroke="#94a3b8" fontSize={12} allowDecimals={false} />
+                    <YAxis type="category" dataKey="username" stroke="#94a3b8" fontSize={12} width={120} />
+                    <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }} />
+                    <Bar dataKey="count" name="Bloqueios" fill="#a855f7" radius={[0, 4, 4, 0]} isAnimationActive={false} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          <div className="family-block">
+            <h3 style={{ marginBottom: '14px' }}>Top URLs bloqueadas</h3>
+            <ul className="compact-list">
+              {stats.top_blocked_urls.map((item, index) => (
+                <li key={`${item.url}_${index}`}>
+                  <span>
+                    <strong style={{ wordBreak: 'break-all' }}>{shortenUrl(item.url)}</strong>
+                  </span>
+                  <span style={{
+                    padding: '4px 10px',
+                    borderRadius: '999px',
+                    background: '#7f1d1d',
+                    color: '#fecaca',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                  }}>
+                    {item.count}
+                  </span>
+                </li>
+              ))}
+              {stats.top_blocked_urls.length === 0 && (
+                <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Nenhum bloqueio registrado.</p>
+              )}
+            </ul>
+          </div>
+        </>
       )}
     </div>
   );
@@ -788,6 +1073,8 @@ function formatDate(value: string) {
 function LoginForm({ onLogin, onSwitch }: { onLogin: () => void, onSwitch: () => void }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [pin, setPin] = useState('');
+  const [usePin, setUsePin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -796,7 +1083,11 @@ function LoginForm({ onLogin, onSwitch }: { onLogin: () => void, onSwitch: () =>
     setLoading(true);
     setError('');
     try {
-      await login(username, password);
+      if (usePin) {
+        await pinLogin(username, pin);
+      } else {
+        await login(username, password);
+      }
       onLogin();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao entrar');
@@ -810,11 +1101,86 @@ function LoginForm({ onLogin, onSwitch }: { onLogin: () => void, onSwitch: () =>
       <h2>Entrar no Zero Phishing</h2>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         <input className="rule-input" type="text" placeholder="Usuário" value={username} onChange={event => setUsername(event.target.value)} required />
-        <input className="rule-input" type="password" placeholder="Senha" value={password} onChange={event => setPassword(event.target.value)} required />
+        {usePin ? (
+          <input className="rule-input" type="password" placeholder="PIN" maxLength={6} value={pin} onChange={event => setPin(event.target.value)} required />
+        ) : (
+          <input className="rule-input" type="password" placeholder="Senha" value={password} onChange={event => setPassword(event.target.value)} required />
+        )}
         {error && <p className="form-error">{error}</p>}
-        <button className="btn-primary" type="submit" disabled={loading}>{loading ? 'Aguarde...' : 'Entrar'}</button>
+        <button className="btn-primary" type="submit" disabled={loading}>{loading ? 'Aguarde...' : (usePin ? 'Entrar com PIN' : 'Entrar')}</button>
       </form>
-      <p style={{ textAlign: 'center', marginTop: '20px' }}>Não tem uma conta? <a href="#" onClick={onSwitch} style={{ color: '#3b82f6' }}>Criar conta</a></p>
+      <p style={{ textAlign: 'center', marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <a href="#" onClick={(event) => { event.preventDefault(); setUsePin(!usePin); }} style={{ color: '#94a3b8' }}>{usePin ? 'Usar senha' : 'Usar PIN'}</a>
+        <span style={{ color: '#475569' }}>·</span>
+        <a href="#" onClick={onSwitch} style={{ color: '#3b82f6' }}>Criar conta</a>
+      </p>
+    </div>
+  );
+}
+
+function ProfilePanel({ user, onUpdate }: { user: User; onUpdate: (user: User) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ first_name: user.first_name, last_name: user.last_name, email: user.email, pin: user.pin || '' });
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+    try {
+      const updated = await updateProfile(form);
+      onUpdate(updated);
+      setSuccess('Perfil atualizado com sucesso.');
+      setEditing(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar perfil.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#60a5fa', marginBottom: '10px' }}>
+        <UserIcon size={24} color="#60a5fa" /> Perfil
+      </h2>
+      <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '20px' }}>
+        Gerencie seus dados de conta e o PIN usado para login rápido.
+      </p>
+
+      {success && <p className="form-success">{success}</p>}
+
+      {!editing ? (
+        <div className="family-block" style={{ maxWidth: '480px' }}>
+          <ul className="compact-list">
+            <li><span><strong>Usuário</strong></span><span className="secondary-text">{user.username}</span></li>
+            <li><span><strong>Nome</strong></span><span className="secondary-text">{[user.first_name, user.last_name].filter(Boolean).join(' ') || '—'}</span></li>
+            <li><span><strong>Email</strong></span><span className="secondary-text">{user.email}</span></li>
+            <li><span><strong>PIN</strong></span><span className="secondary-text">{user.pin ? '••••••' : 'Não definido'}</span></li>
+            <li><span><strong>Membro desde</strong></span><span className="secondary-text">{formatDate(user.date_joined)}</span></li>
+            <li><span><strong>Último login</strong></span><span className="secondary-text">{user.last_login ? new Date(user.last_login).toLocaleString('pt-BR') : '—'}</span></li>
+          </ul>
+          <button className="btn-primary" style={{ marginTop: '16px' }} onClick={() => setEditing(true)}>Editar Perfil</button>
+        </div>
+      ) : (
+        <div className="auth-card" style={{ margin: 0, maxWidth: '480px' }}>
+          <h2>Editar Perfil</h2>
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <input className="rule-input" type="text" placeholder="Nome" value={form.first_name} onChange={event => setForm({ ...form, first_name: event.target.value })} />
+            <input className="rule-input" type="text" placeholder="Sobrenome" value={form.last_name} onChange={event => setForm({ ...form, last_name: event.target.value })} />
+            <input className="rule-input" type="email" placeholder="Email" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} />
+            <input className="rule-input" type="password" placeholder="PIN (4-6 dígitos)" maxLength={6} value={form.pin} onChange={event => setForm({ ...form, pin: event.target.value })} />
+            {error && <p className="form-error">{error}</p>}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button className="btn-primary" type="submit" disabled={loading}>{loading ? 'Salvando...' : 'Salvar'}</button>
+              <button className="btn-secondary" type="button" onClick={() => setEditing(false)}>Cancelar</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
