@@ -135,6 +135,7 @@ export default function App() {
       setReceivedInvitations([]);
       setNotifications([]);
       setBlockLists([]);
+      setShowNotifications(false);
       return;
     }
 

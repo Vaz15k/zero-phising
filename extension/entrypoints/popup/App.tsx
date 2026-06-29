@@ -65,6 +65,12 @@ function Header({
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setShowNotifications(false);
+    }
+  }, [isAuthenticated]);
+
   if (currentPage !== 'main') return null;
 
   const handleNotificationClick = async (n: FamilyNotification) => {
