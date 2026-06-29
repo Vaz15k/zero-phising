@@ -42,12 +42,8 @@
 | 9 | Sprint 3 | Adição de listas de bloqueios padrões | ✅ Fechado |
 | 10 | Sprint 3 | Adição de grupo familiar | ✅ Fechado |
 | 11 | Sprint 3 | Histórico de sites blocked | ✅ Fechado |
-| 12 | Sprint 3 | Pagina de configuração do usuario | ⏳ Aberto |
-| 13 | Sprint 4 | Bloqueio em nível de rede (declarativeNetRequest) | ⏳ Aberto |
-| 14 | Sprint 4 | Dashboard de bloqueios | ⏳ Aberto |
-| 15 | Sprint 4 | Preferências de notificação | ⏳ Aberto |
-| 16 | Sprint 4 | Tema claro/escuro | ⏳ Aberto |
-| 17 | Sprint 4 | Exportar/Importar regras | ⏳ Aberto |
+| 12 | Sprint 4 | Pagina de configuração do usuario | ⏳ Aberto |
+| 13 | Sprint 4 | Dashboard de bloqueios | ⏳ Aberto |
 
 ### Detalhes de Épicos e User Stories (Mapeamento)
 
@@ -64,8 +60,4 @@
 | 10 | Adição de grupo familiar | E4 - Controle de Acesso | US: Como administrador, quero criar e gerenciar um grupo familiar, associando outros usuários para aplicar restrições individuais de acesso. |
 | 11 | Histórico de sites bloqueados | E4 - Controle de Acesso | US: Como administrador, quero visualizar o histórico de tentativas de acesso bloqueadas com data, hora, URL e usuário. |
 | 12 | Pagina de configuração do usuario | E5 - Configurações do Usuário | US: Como usuário, quero um local onde consiga gerenciar as minhas configurações da extensão |
-| 13 | Bloqueio em nível de rede (declarativeNetRequest) | E4 - Controle de Acesso | US: Como administrador, quero que URLs bloqueadas sejam interceptadas em nível de rede antes do carregamento da página, usando a API declarativeNetRequest do Chrome para um bloqueio mais rápido. |
 | 14 | Dashboard de bloqueios | E6 - Relatórios e Visibilidade | US: Como administrador, quero visualizar gráficos e estatísticas dos bloqueios: total por período, distribution por categoria, top URLs bloqueadas e bloqueios por usuário do grupo familiar. |
-| 15 | Preferências de notificação | E5 - Configurações do Usuário | US: Como usuário, quero ativar ou desativar notificações do navegador para sites bloqueados e escolher o nível de detalhe dos alertas. |
-| 16 | Tema claro/escuro | E5 - Configurações do Usuário | US: Como usuário, quero alternar entre tema claro e escuro na interface da extensão para melhor conforto visual durante o uso. |
-| 17 | Exportar/Importar regras | E5 - Configurações do Usuário | US: Como usuário, quero exportar minhas regras de whitelist/blacklist para um arquivo JSON e importar em outro dispositivo ou compartilhar com membros da família. |
