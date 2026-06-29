@@ -7,7 +7,12 @@ body {
   color: #f1f5f9;
 }
 
-.container { padding: 0; }
+.container { padding: 0; animation: fadeIn 0.3s ease-out; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 header {
   display: flex;
@@ -15,6 +20,7 @@ header {
   gap: 10px;
   padding: 16px;
   border-bottom: 1px solid #1e293b;
+  background: linear-gradient(180deg, #131c2e 0%, #0f172a 100%);
 }
 
 header .logo { font-size: 24px; }
@@ -41,9 +47,10 @@ header p { font-size: 11px; color: #64748b; }
   cursor: pointer;
   line-height: 1;
   color: #f1f5f9;
+  transition: all 0.2s ease;
 }
 
-.icon-btn:hover { background: #334155; }
+.icon-btn:hover { background: #334155; transform: scale(1.08); }
 
 /* Status card */
 .status-card {
@@ -53,6 +60,7 @@ header p { font-size: 11px; color: #64748b; }
   display: flex;
   align-items: center;
   gap: 12px;
+  transition: all 0.3s ease;
 }
 
 .status-safe    { background: #052e16; border: 1px solid #16a34a; }
@@ -117,7 +125,7 @@ header p { font-size: 11px; color: #64748b; }
   display: block;
   width: calc(100% - 32px);
   margin: 0 16px 16px;
-  background: #3b82f6;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
   color: white;
   border: none;
   border-radius: 8px;
@@ -126,9 +134,15 @@ header p { font-size: 11px; color: #64748b; }
   font-weight: 600;
   cursor: pointer;
   text-align: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
-.check-btn:hover { background: #2563eb; }
+.check-btn:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
+}
 .check-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 footer {
@@ -137,6 +151,8 @@ footer {
   color: #475569;
   border-top: 1px solid #1e293b;
   text-align: center;
+  background: linear-gradient(180deg, #0f172a 0%, #0d1424 100%);
+  letter-spacing: 0.3px;
 }
 
 /* Auth styles */
@@ -204,29 +220,25 @@ footer {
 }
 
 /* Main tools */
-.main-tools {
-  margin: 0 16px 16px;
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.tool-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: #1e293b;
-  border: 1px solid #334155;
-  color: #f1f5f9;
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 
-.tool-btn:hover {
-  background: #273548;
-  border-color: #3b82f6;
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* Breach results */
 .breach-results {
   margin-top: 20px;
   text-align: left;
+  animation: slideUp 0.3s ease-out;
 }
 
 .breach-title {

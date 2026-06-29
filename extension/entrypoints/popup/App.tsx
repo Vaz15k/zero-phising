@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getSavedUser, logout, User, AuthState } from '../../services/auth';
 import { checkBreaches, Breach } from '../../services/breach';
 import { PopupPage } from '../../types';
-import { Shield, CheckCircle, LogOut, Settings, Loader2, ArrowLeft, Search } from 'lucide-react';
+import { Shield, CheckCircle, LogOut, Settings, Loader2, ArrowLeft, Search, UserCircle } from 'lucide-react';
 import './style.css';
 
 function openOptionsPage(isAuthenticated: boolean) {
@@ -37,7 +37,7 @@ export default function App() {
     <>
       <Header user={auth.user} isAuthenticated={auth.isAuthenticated} onLogout={() => { logout().then(() => { setAuth({ user: null, isAuthenticated: false }); }); }} onNavigate={setPage} currentPage={page} />
 
-      {page === 'main' && <MainPage onNavigate={setPage} />}
+      {page === 'main' && <MainPage />}
       {page === 'breaches' && <BreachCheckerPage onBack={() => setPage('main')} />}
 
       <footer>Zero Phishing · IFMT-CBA</footer>
@@ -60,7 +60,11 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
         )}
       </div>
       <div className="header-menu">
-        <button className="icon-btn" onClick={() => onNavigate('breaches')} title="Verificar Vazamentos">🔍</button>
+        {!isAuthenticated && (
+          <button className="icon-btn" onClick={() => openOptionsPage(false)} title="Entrar na conta">
+            <UserCircle size={18} />
+          </button>
+        )}
         {isAuthenticated && (
           <button className="icon-btn" onClick={onLogout} title="Sair"><LogOut size={18} /></button>
         )}
@@ -70,17 +74,8 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
   );
 }
 
-function MainPage({ onNavigate }: { onNavigate: (p: PopupPage) => void }) {
-  return (
-    <>
-      <UrlChecker />
-      <div className="main-tools">
-        <button className="check-btn tool-btn" onClick={() => onNavigate('breaches')}>
-          <Search size={16} /> Verificar Vazamentos de E-mail
-        </button>
-      </div>
-    </>
-  );
+function MainPage() {
+  return <UrlChecker />;
 }
 
 function UrlChecker() {

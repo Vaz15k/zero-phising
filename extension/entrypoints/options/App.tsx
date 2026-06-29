@@ -70,13 +70,13 @@ import {
 } from 'recharts';
 import type { PieLabelRenderProps } from 'recharts';
 
-type Tab = 'rules' | 'family' | 'login' | 'register' | 'blocklists' | 'history' | 'profile' | 'dashboard';
+type Tab = 'rules' | 'family' | 'blocklists' | 'history' | 'profile' | 'dashboard';
 type RuleType = 'whitelist' | 'blacklist';
 type Feedback = { type: 'success' | 'error'; message: string } | null;
 
 function getInitialTab(): Tab {
   const tab = new URLSearchParams(window.location.search).get('tab');
-  if (tab === 'family' || tab === 'blocklists' || tab === 'history' || tab === 'login' || tab === 'register' || tab === 'profile' || tab === 'dashboard') {
+  if (tab === 'family' || tab === 'blocklists' || tab === 'history' || tab === 'profile' || tab === 'dashboard') {
     return tab;
   }
   return 'rules';
@@ -102,10 +102,17 @@ export default function App() {
   const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriod>('7d');
   const [dashboardFamilyView, setDashboardFamilyView] = useState(false);
   const dashboardRequestId = useRef(0);
+  const [showAuthModal, setShowAuthModal] = useState<'login' | 'register' | null>(null);
 
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const urlTab = new URLSearchParams(window.location.search).get('tab');
+    if (urlTab === 'login') setShowAuthModal('login');
+    else if (urlTab === 'register') setShowAuthModal('register');
   }, []);
 
   async function loadData() {
@@ -213,9 +220,8 @@ export default function App() {
           </div>
         ) : (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {tab !== 'login' && <button className="btn-primary" onClick={() => setTab('login')}>Entrar</button>}
-            {tab !== 'register' && <button className="btn-primary" style={{ background: '#64748b' }} onClick={() => setTab('register')}>Criar Conta</button>}
-            {tab !== 'rules' && <button className="btn-primary" style={{ background: '#cbd5e1', color: '#1e293b' }} onClick={() => setTab('rules')}>Regras Locais</button>}
+            <button className="btn-primary" onClick={() => setShowAuthModal('login')}>Entrar</button>
+            <button className="btn-primary" style={{ background: '#64748b' }} onClick={() => setShowAuthModal('register')}>Criar Conta</button>
           </div>
         )}
       </header>
@@ -243,13 +249,7 @@ export default function App() {
         </div>
       )}
 
-      {tab === 'login' && !auth.isAuthenticated && (
-        <LoginForm onLogin={async () => { await loadData(); setTab('rules'); }} onSwitch={() => setTab('register')} />
-      )}
 
-      {tab === 'register' && !auth.isAuthenticated && (
-        <RegisterForm onRegister={async () => { await loadData(); setTab('rules'); }} onSwitch={() => setTab('login')} />
-      )}
 
       {tab === 'history' && auth.isAuthenticated && (
         <div>
@@ -381,6 +381,28 @@ export default function App() {
           </div>
         </>
       )}
+
+      {showAuthModal && !auth.isAuthenticated && (
+        <div className="modal-overlay" onClick={() => setShowAuthModal(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowAuthModal(null)}>
+              <X size={20} />
+            </button>
+            {showAuthModal === 'login' && (
+              <LoginForm
+                onLogin={async () => { setShowAuthModal(null); await loadData(); }}
+                onSwitch={() => setShowAuthModal('register')}
+              />
+            )}
+            {showAuthModal === 'register' && (
+              <RegisterForm
+                onRegister={async () => { setShowAuthModal(null); await loadData(); }}
+                onSwitch={() => setShowAuthModal('login')}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -467,60 +489,29 @@ function BlockListsPanel({
       {loadingLists ? (
         <p style={{ color: '#94a3b8' }}>Carregando listas...</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div className="blocklist-grid">
           {blockLists.map(list => (
-            <div key={list.id} style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '16px',
-              padding: '18px 22px',
-              background: list.is_activated ? '#0f2818' : '#0f172a',
-              border: `1px solid ${list.is_activated ? '#166534' : '#334155'}`,
-              borderRadius: '10px',
-              transition: 'all 0.2s ease',
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
-                  <strong style={{ fontSize: '15px', color: '#e2e8f0' }}>{list.name}</strong>
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    padding: '2px 10px',
-                    borderRadius: '10px',
-                    background: list.is_activated ? '#166534' : '#1e293b',
-                    color: list.is_activated ? '#4ade80' : '#64748b',
-                    border: `1px solid ${list.is_activated ? '#22c55e44' : '#334155'}`,
-                  }}>
+            <div key={list.id} className={`blocklist-card ${list.is_activated ? 'active' : ''}`}>
+              <div className="blocklist-content">
+                <div className="blocklist-header">
+                  <strong>{list.name}</strong>
+                  <span className={`blocklist-badge ${list.is_activated ? 'active' : ''}`}>
                     {list.is_activated ? 'ATIVADO' : 'DESATIVADO'}
                   </span>
                 </div>
-                <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#94a3b8' }}>{list.description}</p>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>{list.domain_count.toLocaleString()} domínios</span>
+                <p className="blocklist-desc">{list.description}</p>
+                <div className="blocklist-meta">
+                  <Shield size={14} /> {list.domain_count.toLocaleString()} domínios
+                </div>
               </div>
               <button
                 onClick={() => onToggle(list)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: '#ffffff',
-                  background: list.is_activated ? '#dc2626' : '#16a34a',
-                  transition: 'all 0.15s ease',
-                  minWidth: '130px',
-                  justifyContent: 'center',
-                }}
+                className={`blocklist-btn ${list.is_activated ? 'active' : ''}`}
               >
                 {list.is_activated ? (
-                  <><ToggleRight size={20} /> Desativar</>
+                  <><ToggleRight size={18} /> Desativar Lista</>
                 ) : (
-                  <><ToggleLeft size={20} /> Ativar</>
+                  <><ToggleLeft size={18} /> Ativar Lista</>
                 )}
               </button>
             </div>
@@ -1098,7 +1089,13 @@ function LoginForm({ onLogin, onSwitch }: { onLogin: () => void, onSwitch: () =>
 
   return (
     <div className="auth-card">
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+        <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Shield size={28} color="white" />
+        </div>
+      </div>
       <h2>Entrar no Zero Phishing</h2>
+      <p style={{ textAlign: 'center', fontSize: '13px', color: '#64748b', marginTop: '-12px', marginBottom: '8px' }}>Acesse sua conta para sincronizar suas configurações</p>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         <input className="rule-input" type="text" placeholder="Usuário" value={username} onChange={event => setUsername(event.target.value)} required />
         {usePin ? (
@@ -1142,41 +1139,104 @@ function ProfilePanel({ user, onUpdate }: { user: User; onUpdate: (user: User) =
     }
   };
 
+  const initials = [user.first_name, user.last_name]
+    .filter(Boolean)
+    .map(n => n[0])
+    .join('')
+    .toUpperCase() || user.username[0].toUpperCase();
+
+  const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+
   return (
     <div>
-      <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#60a5fa', marginBottom: '10px' }}>
-        <UserIcon size={24} color="#60a5fa" /> Perfil
-      </h2>
-      <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '20px' }}>
-        Gerencie seus dados de conta e o PIN usado para login rápido.
-      </p>
-
       {success && <p className="form-success">{success}</p>}
 
       {!editing ? (
-        <div className="family-block" style={{ maxWidth: '480px' }}>
-          <ul className="compact-list">
-            <li><span><strong>Usuário</strong></span><span className="secondary-text">{user.username}</span></li>
-            <li><span><strong>Nome</strong></span><span className="secondary-text">{[user.first_name, user.last_name].filter(Boolean).join(' ') || '—'}</span></li>
-            <li><span><strong>Email</strong></span><span className="secondary-text">{user.email}</span></li>
-            <li><span><strong>PIN</strong></span><span className="secondary-text">{user.pin ? '••••••' : 'Não definido'}</span></li>
-            <li><span><strong>Membro desde</strong></span><span className="secondary-text">{formatDate(user.date_joined)}</span></li>
-            <li><span><strong>Último login</strong></span><span className="secondary-text">{user.last_login ? new Date(user.last_login).toLocaleString('pt-BR') : '—'}</span></li>
-          </ul>
-          <button className="btn-primary" style={{ marginTop: '16px' }} onClick={() => setEditing(true)}>Editar Perfil</button>
+        <div className="profile-layout">
+          {/* Profile Hero Card */}
+          <div className="profile-hero">
+            <div className="profile-avatar">{initials}</div>
+            <div className="profile-hero-info">
+              <h2 className="profile-hero-name">{fullName || user.username}</h2>
+              <span className="profile-hero-username">@{user.username}</span>
+              <span className="profile-hero-since">
+                <History size={13} /> Membro desde {formatDate(user.date_joined)}
+              </span>
+            </div>
+            <button className="profile-edit-btn" onClick={() => setEditing(true)}>
+              Editar Perfil
+            </button>
+          </div>
+
+          {/* Info Cards Grid */}
+          <div className="profile-cards">
+            <div className="profile-info-card">
+              <div className="profile-info-icon" style={{ background: '#1e3a5f' }}>
+                <Mail size={18} color="#60a5fa" />
+              </div>
+              <div className="profile-info-data">
+                <span className="profile-info-label">E-mail</span>
+                <span className="profile-info-value">{user.email}</span>
+              </div>
+            </div>
+
+            <div className="profile-info-card">
+              <div className="profile-info-icon" style={{ background: '#1a3a2a' }}>
+                <Shield size={18} color="#4ade80" />
+              </div>
+              <div className="profile-info-data">
+                <span className="profile-info-label">PIN de acesso rápido</span>
+                <span className="profile-info-value">{user.pin ? '••••••' : 'Não definido'}</span>
+              </div>
+            </div>
+
+
+
+            <div className="profile-info-card">
+              <div className="profile-info-icon" style={{ background: '#1f2e3d' }}>
+                <UserIcon size={18} color="#94a3b8" />
+              </div>
+              <div className="profile-info-data">
+                <span className="profile-info-label">Nome de usuário</span>
+                <span className="profile-info-value">{user.username}</span>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
-        <div className="auth-card" style={{ margin: 0, maxWidth: '480px' }}>
-          <h2>Editar Perfil</h2>
-          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <input className="rule-input" type="text" placeholder="Nome" value={form.first_name} onChange={event => setForm({ ...form, first_name: event.target.value })} />
-            <input className="rule-input" type="text" placeholder="Sobrenome" value={form.last_name} onChange={event => setForm({ ...form, last_name: event.target.value })} />
-            <input className="rule-input" type="email" placeholder="Email" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} />
-            <input className="rule-input" type="password" placeholder="PIN (4-6 dígitos)" maxLength={6} value={form.pin} onChange={event => setForm({ ...form, pin: event.target.value })} />
+        <div className="profile-edit-panel">
+          <div className="profile-edit-header">
+            <div className="profile-avatar profile-avatar-sm">{initials}</div>
+            <div>
+              <h2 style={{ fontSize: '18px', color: '#f1f5f9', margin: 0 }}>Editar Perfil</h2>
+              <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0' }}>Atualize seus dados de conta</p>
+            </div>
+          </div>
+          <form onSubmit={handleSave} className="profile-edit-form">
+            <div className="profile-edit-row">
+              <div className="profile-field">
+                <label className="profile-field-label">Nome</label>
+                <input className="rule-input" type="text" placeholder="Nome" value={form.first_name} onChange={event => setForm({ ...form, first_name: event.target.value })} />
+              </div>
+              <div className="profile-field">
+                <label className="profile-field-label">Sobrenome</label>
+                <input className="rule-input" type="text" placeholder="Sobrenome" value={form.last_name} onChange={event => setForm({ ...form, last_name: event.target.value })} />
+              </div>
+            </div>
+            <div className="profile-edit-row">
+              <div className="profile-field">
+                <label className="profile-field-label">E-mail</label>
+                <input className="rule-input" type="email" placeholder="E-mail" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} />
+              </div>
+              <div className="profile-field">
+                <label className="profile-field-label">PIN (4-6 dígitos)</label>
+                <input className="rule-input" type="password" placeholder="••••••" maxLength={6} value={form.pin} onChange={event => setForm({ ...form, pin: event.target.value })} />
+              </div>
+            </div>
             {error && <p className="form-error">{error}</p>}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button className="btn-primary" type="submit" disabled={loading}>{loading ? 'Salvando...' : 'Salvar'}</button>
+            <div className="profile-edit-actions">
               <button className="btn-secondary" type="button" onClick={() => setEditing(false)}>Cancelar</button>
+              <button className="btn-primary" type="submit" disabled={loading}>{loading ? 'Salvando...' : 'Salvar Alterações'}</button>
             </div>
           </form>
         </div>
@@ -1206,7 +1266,13 @@ function RegisterForm({ onRegister, onSwitch }: { onRegister: () => void, onSwit
 
   return (
     <div className="auth-card">
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+        <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #10b981, #3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <UserPlus size={28} color="white" />
+        </div>
+      </div>
       <h2>Criar nova conta</h2>
+      <p style={{ textAlign: 'center', fontSize: '13px', color: '#64748b', marginTop: '-12px', marginBottom: '8px' }}>Crie uma conta gratuita para proteger sua navegação</p>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         <input className="rule-input" type="text" placeholder="Nome" value={form.first_name} onChange={event => setForm({ ...form, first_name: event.target.value })} required />
         <input className="rule-input" type="text" placeholder="Nome de Usuário" value={form.username} onChange={event => setForm({ ...form, username: event.target.value })} required />
