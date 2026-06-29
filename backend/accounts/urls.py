@@ -98,4 +98,9 @@ urlpatterns = [
         views.FamilyURLRuleDetailView.as_view(),
         name='family-rule-detail',
     ),
+    path(
+        'dashboard/',
+        views.DashboardStatsView.as_view(),
+        name='dashboard-stats',
+    ),
 ]
