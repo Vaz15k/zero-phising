@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react';
-import { getSavedUser, login, pinLogin, register, updateProfile, logout, User, AuthState } from '../../services/auth';
+import { getSavedUser, logout, User, AuthState } from '../../services/auth';
 import { checkBreaches, Breach } from '../../services/breach';
 import { PopupPage } from '../../types';
-import { Shield, CheckCircle, LogOut, User as UserIcon, Settings, Loader2, ArrowLeft, Search, Users, ExternalLink } from 'lucide-react';
+import { Shield, CheckCircle, LogOut, Settings, Loader2, ArrowLeft, Search } from 'lucide-react';
 import './style.css';
+
+function openOptionsPage(isAuthenticated: boolean) {
+  const url = browser.runtime.getURL('/options.html') + (isAuthenticated ? '' : '?tab=login');
+  browser.tabs.create({ url });
+}
 
 export default function App() {
   const [auth, setAuth] = useState<AuthState>({ user: null, isAuthenticated: false });
@@ -33,11 +38,6 @@ export default function App() {
       <Header user={auth.user} isAuthenticated={auth.isAuthenticated} onLogout={() => { logout().then(() => { setAuth({ user: null, isAuthenticated: false }); }); }} onNavigate={setPage} currentPage={page} />
 
       {page === 'main' && <MainPage onNavigate={setPage} />}
-      {page === 'login' && <LoginPage onLogin={(s) => { setAuth(s); setPage('main'); }} onRegister={() => setPage('register')} onPinLogin={(s) => { setAuth(s); setPage('main'); }} onSkip={() => setPage('main')} />}
-      {page === 'register' && <RegisterPage onRegister={(s) => { setAuth(s); setPage('main'); }} onBack={() => setPage('login')} />}
-      {page === 'profile' && <ProfilePage user={auth.user!} onUpdate={(u) => setAuth({ user: u, isAuthenticated: true })} onBack={() => setPage('main')} />}
-      {page === 'settings' && <SettingsPage isAuthenticated={auth.isAuthenticated} user={auth.user} onNavigate={setPage} onBack={() => setPage('main')} />}
-      
       {page === 'breaches' && <BreachCheckerPage onBack={() => setPage('main')} />}
 
       <footer>Zero Phishing · IFMT-CBA</footer>
@@ -48,7 +48,6 @@ export default function App() {
 function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { user: User | null; isAuthenticated: boolean; onLogout: () => void; onNavigate: (p: PopupPage) => void; currentPage: PopupPage }) {
   if (currentPage !== 'main') return null;
 
-
   return (
     <header>
       <div className="logo"><Shield size={24} color="#3b82f6" /></div>
@@ -57,270 +56,17 @@ function Header({ user, isAuthenticated, onLogout, onNavigate, currentPage }: { 
         {isAuthenticated ? (
           <p>Bem-vindo, {user?.first_name || user?.username}</p>
         ) : (
-          <p className="header-subtle">Nao logado · <button className="link-inline" onClick={() => onNavigate('login')}>Entrar</button></p>
+          <p className="header-subtle">Não conectado</p>
         )}
       </div>
       <div className="header-menu">
-        <button className="icon-btn" onClick={() => onNavigate('settings')} title="Configurações"><Settings size={18} /></button>
+        <button className="icon-btn" onClick={() => onNavigate('breaches')} title="Verificar Vazamentos">🔍</button>
         {isAuthenticated && (
-          <>
-            <button className="icon-btn" onClick={() => onNavigate('breaches')} title="Verificar Vazamentos">🔍</button>
-            <button className="icon-btn" onClick={() => onNavigate('profile')} title="Perfil"><UserIcon size={18} /></button>
-            <button className="icon-btn" onClick={onLogout} title="Sair"><LogOut size={18} /></button>
-          </>
+          <button className="icon-btn" onClick={onLogout} title="Sair"><LogOut size={18} /></button>
         )}
+        <button className="icon-btn" onClick={() => openOptionsPage(isAuthenticated)} title="Configurações"><Settings size={18} /></button>
       </div>
     </header>
-  );
-}
-
-function SettingsPage({
-  isAuthenticated,
-  user,
-  onNavigate,
-  onBack,
-}: {
-  isAuthenticated: boolean;
-  user: User | null;
-  onNavigate: (p: PopupPage) => void;
-  onBack: () => void;
-}) {
-  const openFamilySettings = () => {
-    const width = Math.min(window.screen.availWidth, Math.max(360, Math.floor(window.screen.availWidth * 0.8)));
-    const height = Math.min(window.screen.availHeight, Math.max(520, Math.floor(window.screen.availHeight * 0.9)));
-    browser.windows.create({
-      url: browser.runtime.getURL('/options.html') + '?tab=family&popup=1',
-      type: 'popup',
-      width,
-      height,
-    });
-  };
-
-  return (
-    <div className="container">
-      <div className="profile-top-bar">
-        <button className="icon-btn" onClick={onBack} title="Voltar"><ArrowLeft size={18} /></button>
-      </div>
-      <div className="settings-card">
-        <div className="settings-heading">
-          <Settings size={28} color="#60a5fa" />
-          <div>
-            <h2>Configurações</h2>
-            <p>{isAuthenticated ? `Conectado como ${user?.username}` : 'Entre para sincronizar suas regras'}</p>
-          </div>
-        </div>
-
-        <div className="settings-actions">
-          <button className="settings-action settings-action-primary" onClick={openFamilySettings}>
-            <Users size={18} />
-            <span>Painel completo</span>
-            <ExternalLink size={16} />
-          </button>
-          {isAuthenticated ? (
-            <button className="settings-action" onClick={() => onNavigate('profile')}>
-              <UserIcon size={18} />
-              <span>Perfil</span>
-            </button>
-          ) : (
-            <button className="settings-action" onClick={() => onNavigate('login')}>
-              <UserIcon size={18} />
-              <span>Entrar</span>
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LoginPage({ onLogin, onRegister, onPinLogin, onSkip }: { onLogin: (s: AuthState) => void; onRegister: () => void; onPinLogin: (s: AuthState) => void; onSkip: () => void }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [pin, setPin] = useState('');
-  const [usePin, setUsePin] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      if (usePin) {
-        const state = await pinLogin(username, pin);
-        onPinLogin(state);
-      } else {
-        const state = await login(username, password);
-        onLogin(state);
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erro ao fazer login');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="container">
-      <div className="auth-card">
-        <div className="auth-logo"><Shield size={48} color="#3b82f6" /></div>
-        <h2>Zero Phishing</h2>
-        <p className="auth-sub">Faça login para acessar as configurações</p>
-
-        <form onSubmit={handleSubmit}>
-          <input className="auth-input" type="text" placeholder="Usuário" value={username} onChange={(e) => setUsername(e.target.value)} required />
-
-          {usePin ? (
-            <input className="auth-input" type="password" placeholder="PIN" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value)} required />
-          ) : (
-            <input className="auth-input" type="password" placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          )}
-
-          {error && <p className="auth-error">{error}</p>}
-
-          <button className="auth-btn" type="submit" disabled={loading}>
-            {loading ? 'Entrando...' : (usePin ? 'Entrar com PIN' : 'Entrar')}
-          </button>
-        </form>
-
-        <div className="auth-links">
-          <button className="link-btn" onClick={() => setUsePin(!usePin)}>
-            {usePin ? 'Usar senha' : 'Usar PIN'}
-          </button>
-          <button className="link-btn" onClick={onRegister}>
-            Criar conta
-          </button>
-          <button className="link-btn" onClick={onSkip}>
-            Pular
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function RegisterPage({ onRegister, onBack }: { onRegister: (s: AuthState) => void; onBack: () => void }) {
-  const [form, setForm] = useState({ username: '', email: '', password: '', confirmPassword: '', first_name: '', last_name: '' });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (form.password !== form.confirmPassword) {
-      setError('Senhas não conferem.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const state = await register(form.username, form.email, form.password, form.first_name, form.last_name);
-      onRegister(state);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erro ao registrar');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="container">
-      <div className="auth-card">
-        <div className="auth-logo"><Shield size={48} color="#3b82f6" /></div>
-        <h2>Criar Conta</h2>
-
-        <form onSubmit={handleSubmit}>
-          <input className="auth-input" type="text" placeholder="Nome de usuário *" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
-          <input className="auth-input" type="email" placeholder="Email *" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-          <input className="auth-input" type="text" placeholder="Nome" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
-          <input className="auth-input" type="text" placeholder="Sobrenome" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
-          <input className="auth-input" type="password" placeholder="Senha *" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
-          <input className="auth-input" type="password" placeholder="Confirmar senha *" value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} required />
-
-          {error && <p className="auth-error">{error}</p>}
-
-          <button className="auth-btn" type="submit" disabled={loading}>
-            {loading ? 'Criando...' : 'Criar conta'}
-          </button>
-        </form>
-
-        <button className="link-btn" onClick={onBack}>Voltar ao login</button>
-      </div>
-    </div>
-  );
-}
-
-function ProfilePage({ user, onUpdate, onBack }: { user: User; onUpdate: (u: User) => void; onBack: () => void }) {
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ first_name: user.first_name, last_name: user.last_name, email: user.email, pin: user.pin || '' });
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setLoading(true);
-    try {
-      const updated = await updateProfile(form);
-      onUpdate(updated);
-      setSuccess('Perfil atualizado!');
-      setEditing(false);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar perfil');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!editing) {
-    return (
-      <div className="container">
-        <div className="profile-top-bar">
-          <button className="icon-btn" onClick={onBack} title="Voltar"><ArrowLeft size={18} /></button>
-        </div>
-        <div className="profile-card">
-          <div className="profile-avatar"><UserIcon size={48} color="#64748b" /></div>
-          <h2>{user.first_name || user.username}</h2>
-          <div className="profile-info">
-            <div className="profile-row"><span>Usuário</span><span>{user.username}</span></div>
-            <div className="profile-row"><span>Email</span><span>{user.email}</span></div>
-            <div className="profile-row"><span>Nome</span><span>{user.first_name} {user.last_name}</span></div>
-            <div className="profile-row"><span>PIN</span><span>{user.pin ? '••••••' : 'Não definido'}</span></div>
-            <div className="profile-row"><span>Membro desde</span><span>{new Date(user.date_joined).toLocaleDateString('pt-BR')}</span></div>
-            <div className="profile-row"><span>Último login</span><span>{user.last_login ? new Date(user.last_login).toLocaleString('pt-BR') : '—'}</span></div>
-          </div>
-          <button className="auth-btn" onClick={() => setEditing(true)}>Editar Perfil</button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="container">
-      <div className="profile-top-bar">
-        <button className="icon-btn" onClick={onBack} title="Voltar"><ArrowLeft size={18} /></button>
-      </div>
-      <div className="auth-card">
-        <h2>Editar Perfil</h2>
-        <form onSubmit={handleSave}>
-          <input className="auth-input" type="text" placeholder="Nome" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
-          <input className="auth-input" type="text" placeholder="Sobrenome" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
-          <input className="auth-input" type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <input className="auth-input" type="password" placeholder="PIN (4-6 dígitos)" maxLength={6} value={form.pin} onChange={(e) => setForm({ ...form, pin: e.target.value })} />
-
-          {error && <p className="auth-error">{error}</p>}
-          {success && <p className="auth-success">{success}</p>}
-
-          <button className="auth-btn" type="submit" disabled={loading}>
-            {loading ? 'Salvando...' : 'Salvar'}
-          </button>
-          <button className="link-btn" type="button" onClick={() => setEditing(false)}>Cancelar</button>
-        </form>
-      </div>
-    </div>
   );
 }
 

@@ -446,3 +446,57 @@ export async function deleteFamilyUrlRule(id: number): Promise<void> {
     method: 'DELETE',
   });
 }
+
+// Dashboard de estatísticas de bloqueios
+export interface DashboardSummary {
+  total_blocks: number;
+  total_today: number;
+  total_week: number;
+  total_month: number;
+}
+
+export interface DashboardPoint {
+  date: string;
+  count: number;
+}
+
+export interface DashboardCategory {
+  category: string;
+  category_display: string;
+  count: number;
+}
+
+export interface DashboardTopUrl {
+  url: string;
+  count: number;
+}
+
+export interface DashboardTopDomain {
+  domain: string;
+  count: number;
+}
+
+export interface DashboardUserCount {
+  user_id: number;
+  username: string;
+  count: number;
+}
+
+export interface DashboardStats {
+  summary: DashboardSummary;
+  blocks_over_time: DashboardPoint[];
+  blocks_by_category: DashboardCategory[];
+  top_blocked_urls: DashboardTopUrl[];
+  top_blocked_domains: DashboardTopDomain[];
+  blocks_by_user: DashboardUserCount[];
+}
+
+export type DashboardPeriod = '7d' | '30d' | 'all';
+
+export async function getDashboardStats(options?: { period?: DashboardPeriod; family?: boolean }): Promise<DashboardStats> {
+  const params = new URLSearchParams();
+  params.set('period', options?.period || '7d');
+  if (options?.family) params.set('family', 'true');
+
+  return request<DashboardStats>(`/accounts/dashboard/?${params.toString()}`);
+}
