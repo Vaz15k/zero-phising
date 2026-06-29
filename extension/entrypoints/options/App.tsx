@@ -8,6 +8,7 @@ import {
   deactivateBlockList,
   getFamily,
   createFamily,
+  deleteFamily,
   getFamilyInvitations,
   inviteFamilyMember,
   respondFamilyInvitation,
@@ -903,6 +904,22 @@ function FamilyPanel({
           </h2>
           <span className="role-pill" style={{ marginTop: 0 }}>{isAdmin ? 'Administrador' : 'Membro'}</span>
         </div>
+        {isAdmin && (
+          <button 
+            className="btn-danger" 
+            style={{ padding: '8px 16px', fontSize: '13px' }} 
+            disabled={loading}
+            onClick={() => {
+              if (window.confirm('Tem certeza que deseja excluir esta família? Isso removerá todos os membros e regras, e a ação não pode ser desfeita.')) {
+                run(async () => {
+                  await deleteFamily();
+                });
+              }
+            }}
+          >
+            <Trash2 size={16} /> Excluir Família
+          </button>
+        )}
       </div>
 
       {error && <p className="form-error">{error}</p>}

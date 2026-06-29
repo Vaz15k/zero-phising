@@ -325,6 +325,19 @@ class FamilyView(APIView):
             'family': FamilySerializer(family, context={'request': request}).data,
         }, status=status.HTTP_201_CREATED)
 
+    @transaction.atomic
+    def delete(self, request):
+        family = get_active_family(request.user)
+        if not family:
+            return Response({'error': 'Você não participa de nenhuma família.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        membership = FamilyMember.objects.filter(family=family, user=request.user).first()
+        if not membership or membership.role != 'admin':
+            return Response({'error': 'Apenas administradores podem excluir a família.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        family.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class FamilyInvitationListCreateView(APIView):
     permission_classes = (permissions.IsAuthenticated,)

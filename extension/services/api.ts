@@ -386,6 +386,12 @@ export async function createFamily(name: string): Promise<Family> {
   return data.family;
 }
 
+export async function deleteFamily(): Promise<void> {
+  return request('/accounts/family/', {
+    method: 'DELETE',
+  });
+}
+
 export async function getFamilyInvitations(): Promise<{ sent: FamilyInvitation[]; received: FamilyInvitation[] }> {
   return request('/accounts/family/invitations/');
 }
