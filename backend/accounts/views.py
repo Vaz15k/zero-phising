@@ -2,7 +2,7 @@ from collections import Counter
 from datetime import timedelta
 from urllib.parse import urlparse
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
@@ -84,7 +84,13 @@ class CustomURLRuleListCreateView(generics.ListCreateAPIView):
         return Response([*personal_rules, *family_rules])
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        try:
+            with transaction.atomic():
+                serializer.save(user=self.request.user)
+        except IntegrityError:
+            raise serializers.ValidationError({
+                'url_pattern': 'Esta URL já possui uma regra pessoal.',
+            })
 
 
 class CustomURLRuleDetailView(generics.RetrieveDestroyAPIView):
@@ -531,7 +537,13 @@ class FamilyURLRuleListCreateView(generics.CreateAPIView):
             raise serializers.ValidationError({'error': 'Crie uma família antes de adicionar regras.'})
         if membership.role != 'admin':
             raise serializers.ValidationError({'error': 'Apenas administradores podem adicionar regras da família.'})
-        serializer.save(family=membership.family)
+        try:
+            with transaction.atomic():
+                serializer.save(family=membership.family)
+        except IntegrityError:
+            raise serializers.ValidationError({
+                'url_pattern': 'Esta URL já possui uma regra nesta família.',
+            })
 
 
 class FamilyURLRuleDetailView(APIView):

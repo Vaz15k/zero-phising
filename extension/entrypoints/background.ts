@@ -1,5 +1,5 @@
 import { checkUrl } from '../features/phishing/phishingChecker';
-import { reportBlockedAccess } from '../services/api';
+import { clearBlockDomainsCache, reportBlockedAccess } from '../services/api';
 
 export default defineBackground(() => {
   browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
@@ -62,6 +62,12 @@ export default defineBackground(() => {
   });
 
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === "BLOCK_DOMAINS_CACHE_INVALIDATED") {
+      clearBlockDomainsCache();
+      sendResponse({ ok: true });
+      return false;
+    }
+
     if (message.type === "CHECK_URL") {
       checkUrl(message.url)
         .then(sendResponse)

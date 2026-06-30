@@ -77,10 +77,12 @@ async function getTokens(): Promise<{ access: string; refresh: string } | null> 
 
 export async function setTokens(access: string, refresh: string): Promise<void> {
   await browser.storage.local.set({ access_token: access, refresh_token: refresh });
+  await invalidateBlockDomainsCache();
 }
 
 export async function clearTokens(): Promise<void> {
   await browser.storage.local.remove(['access_token', 'refresh_token', 'current_user']);
+  await invalidateBlockDomainsCache();
 }
 
 export async function request<T = unknown>(endpoint: string, options: RequestOptions = {}): Promise<T> {
@@ -240,33 +242,52 @@ export async function addUrlRule(url_pattern: string, rule_type: 'whitelist' | '
 // Active Block Domains Cache
 let blockDomainsCache: Set<string> | null = null;
 let blockDomainsCacheTime = 0;
+let blockDomainsCacheToken: string | null = null;
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutos
 
 export async function getActiveBlockDomains(): Promise<Set<string>> {
   const now = Date.now();
-  if (blockDomainsCache && (now - blockDomainsCacheTime) < CACHE_TTL) {
-    return blockDomainsCache;
-  }
-
   const tokens = await getTokens();
   if (!tokens) {
     return new Set();
+  }
+
+  if (
+    blockDomainsCache
+    && blockDomainsCacheToken === tokens.access
+    && (now - blockDomainsCacheTime) < CACHE_TTL
+  ) {
+    return blockDomainsCache;
   }
 
   try {
     const response = await request<{ domains: string[] }>('/accounts/active-block-domains/');
     blockDomainsCache = new Set(response.domains.map(d => d.toLowerCase()));
     blockDomainsCacheTime = now;
+    blockDomainsCacheToken = tokens.access;
     return blockDomainsCache;
   } catch (error) {
     console.error('Error fetching block domains:', error);
-    return blockDomainsCache || new Set();
+    return blockDomainsCacheToken === tokens.access
+      ? blockDomainsCache || new Set()
+      : new Set();
   }
 }
 
 export function clearBlockDomainsCache(): void {
   blockDomainsCache = null;
   blockDomainsCacheTime = 0;
+  blockDomainsCacheToken = null;
+}
+
+async function invalidateBlockDomainsCache(): Promise<void> {
+  clearBlockDomainsCache();
+
+  try {
+    await browser.runtime.sendMessage({ type: 'BLOCK_DOMAINS_CACHE_INVALIDATED' });
+  } catch {
+    // O background pode ainda não estar disponível durante a inicialização/recarga.
+  }
 }
 
 export interface BlockList {
@@ -294,13 +315,13 @@ export async function getBlockLists(): Promise<BlockList[]> {
 
 export async function activateBlockList(blockListId: number): Promise<unknown> {
   const result = await request(`/accounts/block-lists/${blockListId}/activate/`, { method: 'POST' });
-  clearBlockDomainsCache();
+  await invalidateBlockDomainsCache();
   return result;
 }
 
 export async function deactivateBlockList(blockListId: number): Promise<unknown> {
   const result = await request(`/accounts/block-lists/${blockListId}/deactivate/`, { method: 'POST' });
-  clearBlockDomainsCache();
+  await invalidateBlockDomainsCache();
   return result;
 }
 
@@ -308,36 +329,19 @@ export async function deleteUrlRule(rule: UrlRule): Promise<void> {
   if (rule.source === 'family') return;
 
   const id = rule.id;
-  
-  // 1. Sempre tenta remover localmente
-  if (typeof id === 'string' && id.startsWith('local_')) {
-    await deleteFromStorage(id);
-  } else if (rule.url_pattern && rule.rule_type) {
-    // Se for uma regra do servidor, também tentamos remover uma possível cópia local
-    await deleteLocalRuleByPattern(rule.url_pattern, rule.rule_type);
-  }
 
-  // 2. Se for uma regra do servidor, remove do backend
   if (typeof id === 'number') {
-    const url = `${API_BASE}/api/accounts/url-rules/${id}/`;
-    const tokens = await getTokens();
-    if (!tokens) return;
-    
-    try {
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${tokens.access}`
-        }
-      });
-
-      if (!response.ok) {
-        console.error('Falha ao excluir regra no servidor');
-      }
-    } catch (error) {
-      console.error('Erro de conexão ao excluir regra no servidor:', error);
-    }
+    await request<void>(`/accounts/url-rules/${id}/`, { method: 'DELETE' });
+    await deleteLocalRuleByPattern(rule.url_pattern, rule.rule_type);
+    return;
   }
+
+  if (id.startsWith('local_')) {
+    await deleteFromStorage(id);
+    return;
+  }
+
+  await deleteLocalRuleByPattern(rule.url_pattern, rule.rule_type);
 }
 // Registra um bloqueio no backend
 export async function reportBlockedAccess(url: string, blockSource: 'USER' | 'GROUP' = 'USER'): Promise<unknown> {

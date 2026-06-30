@@ -496,7 +496,7 @@ function RuleColumn({
               <strong>{rule.url_pattern}</strong>
               <span className="rule-source">{rule.source === 'family' ? 'Família' : rule.source === 'local' ? 'Local' : 'Pessoal'}</span>
             </div>
-            {!readOnly && rule.source !== 'family' && (
+            {!readOnly && (
               <button className="btn-danger" style={{ background: '#fee2e2', color: '#dc2626' }} onClick={() => onDelete(rule)}>
                 <Trash2 size={16} />
               </button>
