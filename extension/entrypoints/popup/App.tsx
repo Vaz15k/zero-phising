@@ -50,7 +50,7 @@ export default function App() {
         setNotifications={setNotifications}
       />
 
-      {page === 'main' && <MainPage />}
+      {page === 'main' && <MainPage onNavigate={setPage} />}
       {page === 'breaches' && <BreachCheckerPage onBack={() => setPage('main')} />}
 
       <footer>Zero Phishing · IFMT-CBA</footer>
@@ -137,8 +137,17 @@ function Header({
   );
 }
 
-function MainPage() {
-  return <UrlChecker />;
+function MainPage({ onNavigate }: { onNavigate: (page: PopupPage) => void }) {
+  return (
+    <>
+      <UrlChecker />
+      <div className="main-tools">
+        <button className="check-btn tool-btn" onClick={() => onNavigate('breaches')}>
+          <Search size={16} /> Verificar Vazamentos de E-mail
+        </button>
+      </div>
+    </>
+  );
 }
 
 function UrlChecker() {
