@@ -42,8 +42,8 @@
 | 9 | Sprint 3 | Adição de listas de bloqueios padrões | ✅ Fechado |
 | 10 | Sprint 3 | Adição de grupo familiar | ✅ Fechado |
 | 11 | Sprint 3 | Histórico de sites blocked | ✅ Fechado |
-| 12 | Sprint 4 | Pagina de configuração do usuario | ⏳ Aberto |
-| 13 | Sprint 4 | Dashboard de bloqueios | ⏳ Aberto |
+| 12 | Sprint 4 | Pagina de configuração do usuario | ✅ Fechado |
+| 13 | Sprint 4 | Dashboard de bloqueios | ✅ Fechado |
 
 ### Detalhes de Épicos e User Stories (Mapeamento)
 
